@@ -116,7 +116,7 @@ rtc_time_t epoch_to_rtc(uint64_t epoch) {
 }
 
 uint64_t rtc_now_epoch() {
-    uint64_t elapsed_ms = apic_timer_ticks() - boot_ticks;
+    uint64_t elapsed_ms = (apic_timer_ticks() - boot_ticks) * 10;
 
     return boot_epoch + elapsed_ms / 1000;
 }

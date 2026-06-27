@@ -18,7 +18,7 @@ USER_CFLAGS := -ffreestanding -fno-stack-protector -nostdlib -static -fno-pie -m
 LIMINE_DIR := $(HOME)/src/limine
 ISO_ROOT := ./iso_root
 
-USER_PROGS := help uptime datetime
+USER_PROGS := help uptime datetime clear
 USER_PROGS_INIT := init/init init/shell
 
 ALL_PROGS := $(USER_PROGS) $(USER_PROGS_INIT)
