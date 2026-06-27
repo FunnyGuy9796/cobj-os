@@ -38,6 +38,9 @@ uint64_t proc_create(const uint8_t *elf_data, uint64_t elf_size) {
     proc->addr_space = space;
     proc->thread = thread;
     proc->heap_top = 0x10000000ULL;
+
+    memset(proc->fds, 0, sizeof(proc->fds));
+
     proc->next = proc_list;
     proc_list = proc;
 

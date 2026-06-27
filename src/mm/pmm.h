@@ -26,6 +26,6 @@ uintptr_t pmm_alloc_page(void);
 uintptr_t pmm_alloc_pages(size_t count);
 void pmm_free_page(uintptr_t phys_addr);
 void pmm_free_pages(uintptr_t phys_addr, size_t count);
-void pmm_init(struct limine_memmap_response *mmap, uint64_t kernel_phys_base);
+void pmm_init(struct limine_memmap_response *mmap, uint64_t kernel_phys_base, void *initrd_addr, uint64_t initrd_size);
 
 #endif

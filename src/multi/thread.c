@@ -2,6 +2,7 @@
 #include "process.h"
 #include "../userspace/cpu.h"
 #include "../arch/tss.h"
+#include "../arch/idt.h"
 
 #define KERNEL_STACK_SIZE (4096 * 4)
 
@@ -68,6 +69,7 @@ thread_t *thread_create(void (*entry)()) {
     thread->id = next_thread_id++;
     thread->process = NULL;
     thread->waiting_for = 0;
+    thread->sleep_until = 0;
     thread->next = NULL;
 
     return thread;
@@ -102,6 +104,11 @@ thread_t *runqueue_next() {
     thread_t *candidate = runqueue_head;
 
     do {
+        if (candidate->state == THREAD_BLOCKED && candidate->sleep_until > 0 && apic_timer_ticks() >= candidate->sleep_until) {
+            candidate->state = THREAD_READY;
+            candidate->sleep_until = 0;
+        }
+
         if (candidate->state == THREAD_READY) {
             runqueue_head = candidate->next;
 
@@ -211,6 +218,7 @@ thread_t *thread_create_user(uint64_t entry, uint64_t user_rsp) {
     thread->user_rsp = user_rsp;
     thread->process = NULL;
     thread->waiting_for = (uint64_t)-1ULL;
+    thread->sleep_until = 0;
     thread->next = NULL;
 
     return thread;

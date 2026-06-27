@@ -7,6 +7,7 @@
 #include "arch/gdt.h"
 #include "arch/tss.h"
 #include "arch/idt.h"
+#include "arch/rtc.h"
 #include "mm/pmm.h"
 #include "mm/vmm.h"
 #include "mm/heap.h"
@@ -48,18 +49,18 @@ static volatile struct limine_module_request mod_request = {
 __attribute__((used, section(".limine_requests_end")))
 static volatile uint64_t limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARKER;
 
+struct limine_file *initrd;
+
 void kidle() {
     threads_enabled = true;
-
-    struct limine_file *initrd = mod_request.response->modules[0];
 
     tar_init(initrd->address, initrd->size);
 
     uint64_t init_size = 0;
-    void *init_elf = tar_find("init.elf", &init_size);
+    void *init_elf = tar_find("init/init", &init_size);
 
     if (!init_elf)
-        panic("main.c: kidle() -> init.elf not found\n");
+        panic("main.c: kidle() -> init not found\n");
 
     proc_create(init_elf, init_size);
 
@@ -83,15 +84,17 @@ void kmain() {
         panic("main.c: kmain() -> no initrd loaded\n");
     
     hhdm_offset = hhdm_request.response->offset;
+    initrd = mod_request.response->modules[0];
 
     gdt_init();
     idt_init();
     tss_init();
     gdt_load_tss();
-    pmm_init(mmap_request.response, exec_addr_request.response->physical_base);
+    pmm_init(mmap_request.response, exec_addr_request.response->physical_base, (void *)((uintptr_t)initrd->address - hhdm_offset), initrd->size);
     vmm_init();
     idt_enable();
     cpu_init();
+    rtc_init();
     slab_init();
     thread_init(&kidle);
 }

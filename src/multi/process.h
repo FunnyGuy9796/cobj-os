@@ -7,7 +7,10 @@
 #include "../loader/elf.h"
 #include "../userspace/cpu.h"
 #include "../arch/tss.h"
+#include "../fs/fs.h"
 #include "../misc/printf.h"
+
+#define MAX_FDS 64
 
 typedef struct vm_region {
     uint64_t base;
@@ -21,6 +24,7 @@ typedef struct process {
     thread_t *thread;
     uint64_t heap_top;
     vm_region_t *regions;
+    file_t *fds[MAX_FDS];
     struct process *next;
 } process_t;
 

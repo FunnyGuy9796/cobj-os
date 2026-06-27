@@ -41,3 +41,15 @@ int waitpid(uint64_t pid) {
 
     return ret;
 }
+
+int kill(uint64_t pid) {
+    int ret;
+
+    __asm__ volatile (
+        "mov $10, %%rax\n"
+        "syscall\n"
+        : "=a"(ret)
+        : "D"(pid)
+        : "rcx", "r11", "memory"
+    );
+}

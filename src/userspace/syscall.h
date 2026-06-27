@@ -11,5 +11,12 @@
 #define SYS_GETPID 5
 #define SYS_WAIT_PID 6
 #define SYS_READ_CHAR 7
+#define SYS_UPTIME 8
+#define SYS_SLEEP 9
+#define SYS_KILL 10
+#define SYS_OPEN 11
+#define SYS_CLOSE 12
+#define SYS_READ 13
+#define SYS_GETTIME 14
 
 #endif

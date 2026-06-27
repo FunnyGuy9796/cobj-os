@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include "../misc/printf.h"
 #include "../mm/vmm.h"
+#include "rtc.h"
 
 typedef struct {
     uint16_t offset_low;
@@ -35,5 +36,6 @@ typedef struct {
 
 void idt_init();
 void idt_enable();
+uint64_t apic_timer_ticks();
 
 #endif

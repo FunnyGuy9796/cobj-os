@@ -4,6 +4,8 @@
 #include "../multi/process.h"
 #include "../fs/tar.h"
 #include "../mm/heap.h"
+#include "../arch/idt.h"
+#include "../arch/rtc.h"
 
 void sys_exit(uint64_t code) {
     uint64_t dying_pid = curr_thread->process->pid;
@@ -94,7 +96,7 @@ uint64_t sys_spawn(const char *name) {
     if (!elf) {
         serial_printf("[E] syscall.c: sys_spawn() -> '%s' not found\n", name);
 
-        return -1;
+        return (uint64_t)-1;
     }
 
     uint64_t pid = proc_create(elf, size);
@@ -116,16 +118,122 @@ void sys_wait_pid(uint64_t pid) {
     curr_thread->waiting_for = target->pid;
 
     schedule();
-    
-    cpu_local.kernel_rsp = curr_thread->kernel_rsp_top;
-    
-    tss_set_rsp0(curr_thread->kernel_rsp_top);
 }
 
 char sys_read_char() {
     while (!(inb(0x3f8 + 5) & 1));
 
     return inb(0x3f8);
+}
+
+void sys_sleep(uint64_t ms) {
+    curr_thread->sleep_until = apic_timer_ticks() + ms;
+    curr_thread->state = THREAD_BLOCKED;
+
+    schedule();
+}
+
+int sys_kill(uint64_t pid) {
+    process_t *proc = proc_find(pid);
+
+    if (!proc) {
+        serial_printf("[E] syscall.c: sys_kill() -> pid=%d not found\n", pid);
+
+        return -1;
+    }
+
+    runqueue_remove(proc->thread);
+
+    proc->thread->state = THREAD_DEAD;
+
+    if (proc->thread == curr_thread) {
+        __asm__ volatile (
+            "mov %0, %%rsp\n"
+            "call schedule\n"
+            "ud2\n"
+            :: "r"(idle_thread->kernel_rsp_top)
+            : "memory"
+        );
+
+        __builtin_unreachable();
+    }
+
+    return 0;
+}
+
+int sys_open(const char *path) {
+    process_t *proc = curr_thread->process;
+    int fd = -1;
+
+    for (int i = 0; i < MAX_FDS; i++) {
+        if (!proc->fds[i]) {
+            fd = i;
+
+            break;
+        }
+    }
+
+    if (fd == -1) {
+        serial_printf("[E] syscall.c: sys_open() -> no free fds\n");
+
+        return -1;
+    }
+
+    uint64_t size = 0;
+    void *data = tar_find(path, &size);
+
+    if (!data) {
+        serial_printf("[E] syscall.c: sys_open() -> '%s' not found\n", path);
+
+        return -1;
+    }
+
+    file_t *file = kmalloc(sizeof(file_t));
+
+    file->data = data;
+    file->size = size;
+    file->offset = 0;
+
+    proc->fds[fd] = file;
+
+    return fd;
+}
+
+int64_t sys_read(int fd, void *buf, uint64_t size) {
+    process_t *proc = curr_thread->process;
+
+    if (fd < 0 || fd >= MAX_FDS || !proc->fds[fd])
+        return -1;
+    
+    file_t *file = proc->fds[fd];
+    uint64_t remaining = file->size - file->offset;
+    uint64_t to_read = size < remaining ? size : remaining;
+
+    if (to_read == 0)
+        return 0;
+    
+    memcpy(buf, (uint8_t *)file->data + file->offset, to_read);
+
+    file->offset += to_read;
+
+    return (int64_t)to_read;
+}
+
+int sys_close(int fd) {
+    process_t *proc = curr_thread->process;
+
+    if (fd < 0 || fd >= MAX_FDS || !proc->fds[fd])
+        return -1;
+    
+    kfree(proc->fds[fd]);
+
+    proc->fds[fd] = NULL;
+
+    return 0;
+}
+
+void sys_gettime(rtc_time_t *out) {
+    *out = rtc_now();
 }
 
 uint64_t syscall_dispatch(uint64_t number, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
@@ -162,6 +270,33 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t arg0, uint64_t arg1, uint64_
         
         case SYS_READ_CHAR:
             return (uint64_t)sys_read_char();
+        
+        case SYS_UPTIME:
+            return apic_timer_ticks();
+        
+        case SYS_SLEEP: {
+            sys_sleep(arg0);
+
+            return 0;
+        }
+
+        case SYS_KILL:
+            return (uint64_t)sys_kill(arg0);
+        
+        case SYS_OPEN:
+            return (uint64_t)sys_open((const char *)arg0);
+        
+        case SYS_READ:
+            return (uint64_t)sys_read((int)arg0, (void *)arg1, arg2);
+
+        case SYS_CLOSE:
+            return (uint64_t)sys_close((int)arg0);
+        
+        case SYS_GETTIME: {
+            sys_gettime((rtc_time_t *)arg0);
+
+            return 0;
+        }
 
         default: {
             serial_printf("[D] syscall number=%d arg0=%p\n", number, arg0);

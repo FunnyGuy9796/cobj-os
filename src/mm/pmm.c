@@ -144,7 +144,7 @@ void pmm_free_pages(uintptr_t phys_addr, size_t count) {
         pmm_free_page(phys_addr + i * PAGE_SIZE);
 }
 
-void pmm_init(struct limine_memmap_response *mmap, uint64_t kernel_phys_base) {
+void pmm_init(struct limine_memmap_response *mmap, uint64_t kernel_phys_base, void *initrd_addr, uint64_t initrd_size) {
     uint64_t kernel_size = (uintptr_t)__kernel_end - (uintptr_t)__kernel_start;
 
     phys_kstart = kernel_phys_base;
@@ -154,6 +154,10 @@ void pmm_init(struct limine_memmap_response *mmap, uint64_t kernel_phys_base) {
 
     for (size_t i = 0; i < mmap->entry_count; i++) {
         struct limine_memmap_entry *entry = mmap->entries[i];
+
+        if (entry->type != LIMINE_MEMMAP_USABLE)
+            continue;
+
         uintptr_t entry_end = entry->base + entry->length;
 
         if (entry_end > highest_addr)
@@ -193,4 +197,5 @@ void pmm_init(struct limine_memmap_response *mmap, uint64_t kernel_phys_base) {
 
     pmm_mark_range_used(phys_kstart, phys_kend - phys_kstart);
     pmm_mark_range_used(bitmap_phys, bitmap_size);
+    pmm_mark_range_used((uintptr_t)initrd_addr, initrd_size);
 }

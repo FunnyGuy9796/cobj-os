@@ -1,5 +1,6 @@
 #include <printf.h>
 #include <io.h>
+#include <sys.h>
 #include <proc.h>
 
 static char buf[256];
@@ -37,10 +38,15 @@ static void readline(char *out, int max) {
 }
 
 int main() {
-    printf("cobj shell\n");
+    rtc_time_t t;
+
+    gettime(&t);
+
+    printf("welcome to cobj OS\n");
+    printf("%04d-%02d-%02d %02d:%02d:%02d\n\n", t.year, t.month, t.day, t.hours, t.minutes, t.seconds);
 
     while (1) {
-        printf("> ");
+        printf("$> ");
         readline(buf, sizeof(buf));
 
         if (buf[0] == '\0')
@@ -52,7 +58,7 @@ int main() {
         uint64_t ret = spawn(buf);
 
         if (ret < 0)
-            printf("unknown command: %s\n", buf);
+            printf("command not found: %s\n", buf);
         else
             waitpid(ret);
     }

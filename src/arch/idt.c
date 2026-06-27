@@ -54,7 +54,8 @@ static idt_entry_t idt[IDT_ENTRIES];
 static idtr_t idtr;
 static uint64_t lapic_base = 0;
 static uint32_t lapic_timer_tpm = 0;
-static volatile uint64_t lapic_timer_ticks = 0;
+
+volatile uint64_t lapic_timer_ticks = 0;
 
 static inline uint32_t lapic_read(uint32_t reg) {
     return *((volatile uint32_t *)(lapic_base + reg));
@@ -206,6 +207,12 @@ void irq_handler(uint64_t vector) {
 
         lapic_timer_ticks++;
 
+        if (lapic_timer_ticks % 6000 == 0) {
+            boot_time = rtc_read();
+            boot_epoch = rtc_to_epoch(&boot_time);
+            boot_ticks = apic_timer_ticks();
+        }
+
         if (threads_enabled)
             schedule();
 
@@ -215,4 +222,8 @@ void irq_handler(uint64_t vector) {
     serial_printf("[I] vector=%d\n", vector);
 
     lapic_eoi();
+}
+
+uint64_t apic_timer_ticks() {
+    return lapic_timer_ticks;
 }

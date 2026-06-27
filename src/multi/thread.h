@@ -29,6 +29,7 @@ typedef struct thread {
     uint64_t user_rsp;
     process_t *process;
     uint64_t waiting_for;
+    uint64_t sleep_until;
     struct thread *next;
 } thread_t;
 
