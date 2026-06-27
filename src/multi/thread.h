@@ -27,6 +27,8 @@ typedef struct thread {
     uint64_t id;
     uint64_t user_entry;
     uint64_t user_rsp;
+    uint64_t user_argc;
+    uint64_t user_argv;
     process_t *process;
     uint64_t waiting_for;
     uint64_t sleep_until;

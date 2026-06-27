@@ -89,7 +89,7 @@ int sys_munmap(uint64_t addr, uint64_t size) {
     return 0;
 }
 
-uint64_t sys_spawn(const char *name) {
+uint64_t sys_spawn(const char *name, const char **argv, int argc) {
     uint64_t size = 0;
     void *elf = tar_find(name, &size);
 
@@ -99,9 +99,22 @@ uint64_t sys_spawn(const char *name) {
         return (uint64_t)-1;
     }
 
-    uint64_t pid = proc_create(elf, size);
+    char *argv_copies[argc];
+    char argv_bufs[argc][256];
 
-    return pid;
+    for (int i = 0; i < argc; i++) {
+        int len = strlen(argv[i]);
+
+        if (len > 255)
+            len = 255;
+
+        memcpy(argv_bufs[i], argv[i], len);
+
+        argv_bufs[i][len] = '\0';
+        argv_copies[i] = argv_bufs[i];
+    }
+
+    return proc_create(elf, size, (const char **)argv_copies, argc);
 }
 
 uint64_t sys_getpid() {
@@ -236,6 +249,30 @@ void sys_gettime(rtc_time_t *out) {
     *out = rtc_now();
 }
 
+int sys_listprocs(proc_info_t *buf, int max) {
+    process_t *proc = proc_list;
+    int count = 0;
+
+    while (proc && count < max) {
+        buf[count].pid = proc->pid;
+        buf[count].state = (uint8_t)proc->thread->state;
+
+        if (proc->thread && proc->name[0])
+            strncpy(buf[count].name, proc->name, 63);
+        else
+            buf[count].name[0] = '\0';
+        
+        count++;
+        proc = proc->next;
+    }
+
+    return count;
+}
+
+int sys_listdir(const char *path, tar_entry_t *entries, int max) {
+    return tar_listdir(path, entries, max);
+}
+
 uint64_t syscall_dispatch(uint64_t number, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
     switch (number) {
         case SYS_EXIT: {
@@ -257,7 +294,7 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t arg0, uint64_t arg1, uint64_
             return (uint64_t)sys_munmap(arg0, arg1);
 
         case SYS_SPAWN:
-            return sys_spawn((const char *)arg0);
+            return sys_spawn((const char *)arg0, (const char **)arg1, (int)arg2);
         
         case SYS_GETPID:
             return sys_getpid();
@@ -297,6 +334,12 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t arg0, uint64_t arg1, uint64_
 
             return 0;
         }
+
+        case SYS_LISTPROCS:
+            return (uint64_t)sys_listprocs((proc_info_t *)arg0, (int)arg1);
+        
+        case SYS_LISTDIR:
+            return (uint64_t)sys_listdir((const char *)arg0, (tar_entry_t *)arg1, (int)arg2);
 
         default: {
             serial_printf("[D] syscall number=%d arg0=%p\n", number, arg0);

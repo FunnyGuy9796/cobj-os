@@ -24,7 +24,14 @@ typedef struct {
     char pad[12];
 } __attribute__((packed)) tar_header_t;
 
+typedef struct {
+    char name[100];
+    uint8_t type;
+    uint64_t size;
+} tar_entry_t;
+
 void tar_init(void *data, uint64_t size);
 void *tar_find(const char *name, uint64_t *size_out);
+int tar_listdir(const char *path, tar_entry_t *entries, int max);
 
 #endif

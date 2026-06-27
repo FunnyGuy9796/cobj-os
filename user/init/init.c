@@ -1,10 +1,11 @@
+#include <stddef.h>
 #include <printf.h>
 #include <fs.h>
 #include <proc.h>
 
 static char buf[512];
 
-int main() {
+int main(int argc, char **argv) {
     printf("\033[2J\033[H");
 
     int fd = open("info.txt");
@@ -24,7 +25,7 @@ int main() {
     }
 
     close(fd);
-    spawn("init/shell");
+    spawn("init/shell", NULL, 0);
 
     return 0;
 }

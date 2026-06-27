@@ -57,5 +57,8 @@ jump_userspace:
     push $0x202
     push $0x23
     push %rdi
+
+    mov %rdx, %rdi
+    mov %rcx, %rsi
     
     iretq

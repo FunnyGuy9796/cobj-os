@@ -61,8 +61,10 @@ void kidle() {
 
     if (!init_elf)
         panic("main.c: kidle() -> init not found\n");
+    
+    const char *argv[] = { "init/init" };
 
-    proc_create(init_elf, init_size);
+    proc_create(init_elf, init_size, argv, 1);
 
     for (;;)
         __asm__ volatile ("hlt");

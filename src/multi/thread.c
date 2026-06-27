@@ -14,7 +14,7 @@ static uint64_t next_thread_id = 0;
 static thread_t *runqueue_head = NULL;
 
 extern void thread_idle(thread_t *thread);
-extern void jump_userspace(uint64_t rip, uint64_t rsp);
+extern void jump_userspace(uint64_t rip, uint64_t rsp, uint64_t argc, uint64_t argv);
 
 void thread_init(void (*idle_entry)()) {
     idle_thread = thread_create(idle_entry);
@@ -180,7 +180,7 @@ void thread_userspace_enter() {
 
     tss_set_rsp0(curr_thread->kernel_rsp_top);
     vmm_switch_space(curr_thread->process->addr_space);
-    jump_userspace(curr_thread->user_entry, curr_thread->user_rsp);
+    jump_userspace(curr_thread->user_entry, curr_thread->user_rsp, curr_thread->user_argc, curr_thread->user_argv);
 }
 
 thread_t *thread_create_user(uint64_t entry, uint64_t user_rsp) {

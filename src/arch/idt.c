@@ -213,6 +213,9 @@ void irq_handler(uint64_t vector) {
             boot_ticks = apic_timer_ticks();
         }
 
+        if (lapic_timer_ticks % 500 == 0)
+            proc_cleanup();
+
         if (threads_enabled)
             schedule();
 

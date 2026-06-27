@@ -18,7 +18,7 @@ USER_CFLAGS := -ffreestanding -fno-stack-protector -nostdlib -static -fno-pie -m
 LIMINE_DIR := $(HOME)/src/limine
 ISO_ROOT := ./iso_root
 
-USER_PROGS := help uptime datetime clear
+USER_PROGS := uptime datetime clear echo ps pkill ls cat
 USER_PROGS_INIT := init/init init/shell
 
 ALL_PROGS := $(USER_PROGS) $(USER_PROGS_INIT)
@@ -49,7 +49,11 @@ $(LIB): $(LIB_OBJS)
 	cp $< $@
 
 initrd.tar: $(USER_ELFS) ./build/user/info.txt
-	tar -cf initrd.tar -C ./build/user $(ALL_PROGS) info.txt
+	cd ./build/user && tar -cf ../../initrd.tar --format=ustar \
+		--transform='s|^\./||' \
+		--exclude='*.o' \
+		--exclude='*.a' \
+		.
 
 elf: $(C_OBJS) $(S_OBJS)
 	$(GCC)-gcc $(C_OBJS) $(S_OBJS) $(LDFLAGS) -o ./build/$(NAME).elf

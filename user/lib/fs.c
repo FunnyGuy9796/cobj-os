@@ -41,3 +41,17 @@ int close(int fd) {
 
     return ret;
 }
+
+int listdir(const char *path, tar_entry_t *entries, int max) {
+    int ret;
+
+    __asm__ volatile (
+        "mov $16, %%rax\n"
+        "syscall\n"
+        : "=a"(ret)
+        : "D"(path), "S"(entries), "d"((uint64_t)max)
+        : "rcx", "r11", "memory"
+    );
+    
+    return ret;
+}

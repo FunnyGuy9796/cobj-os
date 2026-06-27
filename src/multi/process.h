@@ -20,6 +20,7 @@ typedef struct vm_region {
 
 typedef struct process {
     uint64_t pid;
+    char name[64];
     addr_space_t *addr_space;
     thread_t *thread;
     uint64_t heap_top;
@@ -28,7 +29,16 @@ typedef struct process {
     struct process *next;
 } process_t;
 
-uint64_t proc_create(const uint8_t *elf_data, uint64_t elf_size);
+typedef struct {
+    uint64_t pid;
+    char name[64];
+    uint8_t state;
+} proc_info_t;
+
+extern process_t *proc_list;
+
+uint64_t proc_create(const uint8_t *elf_data, uint64_t elf_size, const char **argv, int argc);
 process_t *proc_find(uint64_t pid);
+void proc_cleanup();
 
 #endif

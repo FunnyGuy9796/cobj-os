@@ -1,7 +1,10 @@
+#include <stddef.h>
 #include <printf.h>
+#include <util.h>
 #include <io.h>
 #include <sys.h>
 #include <proc.h>
+#include <malloc.h>
 
 static char buf[256];
 
@@ -37,7 +40,32 @@ static void readline(char *out, int max) {
     out[i] = '\0';
 }
 
-int main() {
+static char *args[32];
+static int arg_count;
+
+static void parse_args(char *input) {
+    arg_count = 0;
+
+    char *p = input;
+
+    while (*p) {
+        while (*p == ' ')
+            p++;
+
+        if (*p == '\0')
+            break;
+
+        args[arg_count++] = p;
+
+        while (*p && *p != ' ')
+            p++;
+
+        if (*p == ' ')
+            *p++ = '\0';
+    }
+}
+
+int main(int argc, char **argv) {
     rtc_time_t t;
 
     gettime(&t);
@@ -46,19 +74,21 @@ int main() {
     printf("%04d-%02d-%02d %02d:%02d:%02d\n\n", t.year, t.month, t.day, t.hours, t.minutes, t.seconds);
 
     while (1) {
-        printf("$> ");
+        printf("cobj$> ");
         readline(buf, sizeof(buf));
 
         if (buf[0] == '\0')
             continue;
+        
+        parse_args(buf);
 
-        if (strcmp(buf, "exit") == 0)
-            break;
+        if (arg_count == 0)
+            continue;
 
-        uint64_t ret = spawn(buf);
+        uint64_t ret = spawn(args[0], (const char **)args + 1, arg_count - 1);
 
         if (ret < 0)
-            printf("command not found: %s\n", buf);
+            printf("command not found: %s\n", args[0]);
         else
             waitpid(ret);
     }

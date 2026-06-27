@@ -18,5 +18,7 @@
 #define SYS_CLOSE 12
 #define SYS_READ 13
 #define SYS_GETTIME 14
+#define SYS_LISTPROCS 15
+#define SYS_LISTDIR 16
 
 #endif
