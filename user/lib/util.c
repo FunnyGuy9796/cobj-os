@@ -150,3 +150,31 @@ void utoa(uint64_t value, char *buf, int base) {
     
     buf[j] = '\0';
 }
+
+int atoi(const char *s) {
+    int result = 0;
+    int sign = 1;
+
+    if (*s == '-') {
+        sign = -1;
+        s++;
+    }
+
+    while (*s >= '0' && *s <= '9') {
+        result = result * 10 + (*s - '0');
+        s++;
+    }
+
+    return sign * result;
+}
+
+int isdigit(const char *s) {
+    if (!*s)
+        return 0;
+
+    while (*s)
+        if (*s < '0' || *s++ > '9')
+            return 0;
+
+    return 1;
+}

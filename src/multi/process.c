@@ -2,7 +2,6 @@
 
 process_t *proc_list = NULL;
 
-static process_t *curr_proc = NULL;
 static uint64_t next_proc_id = 0;
 
 extern void jump_userspace(uint64_t rip, uint64_t rsp);
@@ -133,5 +132,27 @@ void proc_cleanup() {
             kfree(proc);
         } else
             curr = &proc->next;
+    }
+
+    int alive = 0;
+    process_t *p = proc_list;
+
+    while (p) {
+        if (p->thread->state != THREAD_DEAD)
+            alive++;
+        
+        p = p->next;
+    }
+
+    if (!alive) {
+        uint64_t init_size = 0;
+        void *init_elf = tar_find("init/init", &init_size);
+
+        if (!init_elf)
+            panic("process.c: proc_cleanup() -> init not found\n");
+        
+        const char *argv[] = { "init/init" };
+
+        proc_create(init_elf, init_size, argv, 1);
     }
 }

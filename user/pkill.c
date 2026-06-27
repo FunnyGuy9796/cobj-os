@@ -15,14 +15,25 @@ int main(int argc, char **argv) {
     int count = listprocs(procs, MAX_PROCS);
     int killed = 0;
 
-    for (int i = 0; i < count; i++) {
-        if (strcmp(procs[i].name, argv[1]) == 0) {
-            int ret = kill(procs[i].pid);
+    if (isdigit(argv[1])) {
+        int pid = atoi(argv[1]);
+        int ret = kill(pid);
 
-            if (ret == 0) {
-                printf("killed %s (pid %d)\n", procs[i].name, procs[i].pid);
-                
-                killed++;
+        if (ret == 0) {
+            printf("killed pid %d\n", pid);
+
+            killed++;
+        }
+    } else {
+        for (int i = 0; i < count; i++) {
+            if (strcmp(procs[i].name, argv[1]) == 0) {
+                int ret = kill(procs[i].pid);
+
+                if (ret == 0) {
+                    printf("killed %s (pid %d)\n", procs[i].name, procs[i].pid);
+
+                    killed++;
+                }
             }
         }
     }

@@ -8,6 +8,7 @@
 #include "../userspace/cpu.h"
 #include "../arch/tss.h"
 #include "../fs/fs.h"
+#include "../fs/tar.h"
 #include "../misc/printf.h"
 
 #define MAX_FDS 64
