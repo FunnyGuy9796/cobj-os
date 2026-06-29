@@ -53,7 +53,7 @@ struct limine_file *initrd;
 
 void kidle() {
     threads_enabled = true;
-
+    
     tar_init(initrd->address, initrd->size);
 
     uint64_t init_size = 0;

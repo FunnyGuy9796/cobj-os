@@ -54,6 +54,13 @@ static int vsnprintf(char *buf, size_t size, const char *fmt, va_list args) {
             }
         }
 
+        int is_long = 0;
+
+        if (*fmt == 'l') {
+            is_long = 1;
+            fmt++;
+        }
+
 #define PAD_AND_PUT(tmp, len) do {                          \
     int _len = (len);                                       \
     int _pad = width - _len;                                \
@@ -128,8 +135,9 @@ static int vsnprintf(char *buf, size_t size, const char *fmt, va_list args) {
 
             case 'u': {
                 char tmp[32];
+                uint64_t val = is_long ? va_arg(args, uint64_t) : va_arg(args, unsigned int);
 
-                utoa(va_arg(args, unsigned int), tmp, 10);
+                utoa(val, tmp, 10);
 
                 int len = 0;
                 
@@ -155,8 +163,9 @@ static int vsnprintf(char *buf, size_t size, const char *fmt, va_list args) {
 
             case 'x': {
                 char tmp[32];
+                uint64_t val = is_long ? va_arg(args, uint64_t) : va_arg(args, unsigned int);
 
-                utoa(va_arg(args, uint64_t), tmp, 16);
+                utoa(val, tmp, 16);
 
                 int len = 0; while (tmp[len]) len++;
 

@@ -22,6 +22,7 @@ void itoa(int value, char *buf, int base);
 void utoa(uint64_t value, char *buf, int base);
 int atoi(const char *s);
 int isdigit(const char *s);
+uint64_t strtoull(const char *str, char **endptr, int base);
 
 static inline void outb(uint16_t port, uint8_t value) {
     __asm__ volatile ("outb %0, %1" : : "a"(value), "Nd"(port));

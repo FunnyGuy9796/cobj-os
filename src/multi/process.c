@@ -74,6 +74,7 @@ uint64_t proc_create(const uint8_t *elf_data, uint64_t elf_size, const char **ar
     proc->heap_top = 0x10000000ULL;
 
     memset(proc->fds, 0, sizeof(proc->fds));
+    memset(proc->ports, 0, sizeof(proc->ports));
 
     proc->next = proc_list;
     proc_list = proc;

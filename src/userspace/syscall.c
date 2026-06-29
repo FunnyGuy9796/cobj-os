@@ -1,4 +1,5 @@
 #include "syscall.h"
+#include "port.h"
 #include "../misc/printf.h"
 #include "../multi/thread.h"
 #include "../multi/process.h"
@@ -8,7 +9,16 @@
 #include "../arch/rtc.h"
 
 void sys_exit(uint64_t code) {
-    uint64_t dying_pid = curr_thread->process->pid;
+    process_t *proc = curr_thread->process;
+    uint64_t dying_pid = proc->pid;
+
+    for (int i = 0; i < MAX_PORTS; i++) {
+        if (proc->ports[i]) {
+            port_destroy(proc->ports[i]);
+
+            proc->ports[i] = NULL;
+        }
+    }
 
     runqueue_remove(curr_thread);
     
@@ -93,14 +103,10 @@ uint64_t sys_spawn(const char *name, const char **argv, int argc) {
     uint64_t size = 0;
     void *elf = tar_find(name, &size);
 
-    if (!elf) {
-        serial_printf("[E] syscall.c: sys_spawn() -> '%s' not found\n", name);
-
+    if (!elf)
         return (uint64_t)-1;
-    }
 
-    char *argv_copies[argc];
-    char argv_bufs[argc][256];
+    char **argv_copies = kmalloc(sizeof(char *) * argc);
 
     for (int i = 0; i < argc; i++) {
         int len = strlen(argv[i]);
@@ -108,13 +114,21 @@ uint64_t sys_spawn(const char *name, const char **argv, int argc) {
         if (len > 255)
             len = 255;
 
-        memcpy(argv_bufs[i], argv[i], len);
+        argv_copies[i] = kmalloc(len + 1);
 
-        argv_bufs[i][len] = '\0';
-        argv_copies[i] = argv_bufs[i];
+        memcpy(argv_copies[i], argv[i], len);
+
+        argv_copies[i][len] = '\0';
     }
 
-    return proc_create(elf, size, (const char **)argv_copies, argc);
+    uint64_t pid = proc_create(elf, size, (const char **)argv_copies, argc);
+
+    for (int i = 0; i < argc; i++)
+        kfree(argv_copies[i]);
+
+    kfree(argv_copies);
+
+    return pid;
 }
 
 uint64_t sys_getpid() {
@@ -149,11 +163,8 @@ void sys_sleep(uint64_t ms) {
 int sys_kill(uint64_t pid) {
     process_t *proc = proc_find(pid);
 
-    if (!proc) {
-        serial_printf("[E] syscall.c: sys_kill() -> pid=%d not found\n", pid);
-
+    if (!proc)
         return -1;
-    }
 
     runqueue_remove(proc->thread);
 
@@ -178,7 +189,7 @@ int sys_open(const char *path) {
     process_t *proc = curr_thread->process;
     int fd = -1;
 
-    for (int i = 0; i < MAX_FDS; i++) {
+    for (int i = FD_RESERVED; i < MAX_FDS; i++) {
         if (!proc->fds[i]) {
             fd = i;
 
@@ -186,20 +197,14 @@ int sys_open(const char *path) {
         }
     }
 
-    if (fd == -1) {
-        serial_printf("[E] syscall.c: sys_open() -> no free fds\n");
-
+    if (fd == -1)
         return -1;
-    }
 
     uint64_t size = 0;
     void *data = tar_find(path, &size);
 
-    if (!data) {
-        serial_printf("[E] syscall.c: sys_open() -> '%s' not found\n", path);
-
+    if (!data)
         return -1;
-    }
 
     file_t *file = kmalloc(sizeof(file_t));
 
@@ -213,6 +218,20 @@ int sys_open(const char *path) {
 }
 
 int64_t sys_read(int fd, void *buf, uint64_t size) {
+    if (fd == FD_STDIN) {
+        char *cbuf = (char *)buf;
+        uint64_t i = 0;
+
+        while (i < size) {
+            cbuf[i] = sys_read_char();
+
+            if (cbuf[i++] == '\n')
+                break;
+        }
+
+        return (int64_t)i;
+    }
+
     process_t *proc = curr_thread->process;
 
     if (fd < 0 || fd >= MAX_FDS || !proc->fds[fd])
@@ -230,6 +249,19 @@ int64_t sys_read(int fd, void *buf, uint64_t size) {
     file->offset += to_read;
 
     return (int64_t)to_read;
+}
+
+int64_t sys_write(int fd, const void *buf, uint64_t size) {
+    if (fd == FD_STDOUT || fd == FD_STDERR) {
+        const char *cbuf = (const char *)buf;
+
+        for (uint64_t i = 0; i < size; i++)
+            serial_putchar(cbuf[i]);
+
+        return (int64_t)size;
+    }
+
+    return -1;
 }
 
 int sys_close(int fd) {
@@ -273,6 +305,48 @@ int sys_listdir(const char *path, tar_entry_t *entries, int max) {
     return tar_listdir(path, entries, max);
 }
 
+port_token_t sys_port_create() {
+    process_t *proc = curr_thread->process;
+    port_t *port = port_create();
+
+    for (int i = 0; i < MAX_PORTS; i++) {
+        if (proc->ports[i] == 0) {
+            proc->ports[i] = port;
+
+            return port->token;
+        }
+    }
+
+    return 0;
+}
+
+int sys_port_receive(port_token_t token, void *buf, uint64_t len) {
+    process_t *proc = curr_thread->process;
+
+    for (int i = 0; i < MAX_PORTS; i++) {
+        if (proc->ports[i] && proc->ports[i]->token == token)
+            return port_receive(token, buf, len);
+    }
+
+    return -1;
+}
+
+int sys_port_destroy(port_token_t token) {
+    process_t *proc = curr_thread->process;
+
+    for (int i = 0; i < MAX_PORTS; i++) {
+        if (proc->ports[i] && proc->ports[i]->token == token) {
+            port_destroy(proc->ports[i]);
+
+            proc->ports[i] = NULL;
+
+            return 0;
+        }
+    }
+
+    return -1;
+}
+
 uint64_t syscall_dispatch(uint64_t number, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
     switch (number) {
         case SYS_EXIT: {
@@ -304,9 +378,6 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t arg0, uint64_t arg1, uint64_
 
             return 0;
         }
-        
-        case SYS_READ_CHAR:
-            return (uint64_t)sys_read_char();
         
         case SYS_UPTIME:
             return apic_timer_ticks();
@@ -340,6 +411,21 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t arg0, uint64_t arg1, uint64_
         
         case SYS_LISTDIR:
             return (uint64_t)sys_listdir((const char *)arg0, (tar_entry_t *)arg1, (int)arg2);
+        
+        case SYS_WRITE:
+            return (uint64_t)sys_write((int)arg0, (const void *)arg1, arg2);
+        
+        case SYS_PORT_CREATE:
+            return (uint64_t)sys_port_create();
+        
+        case SYS_PORT_FORWARD:
+            return (uint64_t)port_forward((port_token_t)arg0, (void *)arg1, arg2);
+        
+        case SYS_PORT_RECEIVE:
+            return (uint64_t)sys_port_receive((port_token_t)arg0, (void *)arg1, arg2);
+        
+        case SYS_PORT_DESTROY:
+            return (uint64_t)sys_port_destroy((port_token_t)arg0);
 
         default: {
             serial_printf("[D] syscall number=%d arg0=%p\n", number, arg0);

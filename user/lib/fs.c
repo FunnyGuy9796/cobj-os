@@ -28,6 +28,20 @@ int64_t read(int fd, void *buf, uint64_t size) {
     return ret;
 }
 
+int64_t write(int fd, const void *buf, uint64_t size) {
+    int64_t ret;
+
+    __asm__ volatile (
+        "mov $16, %%rax\n"
+        "syscall\n"
+        : "=a"(ret)
+        : "D"((uint64_t)fd), "S"(buf), "d"(size)
+        : "rcx", "r11", "memory"
+    );
+
+    return ret;
+}
+
 int close(int fd) {
     int ret;
 
@@ -46,7 +60,7 @@ int listdir(const char *path, tar_entry_t *entries, int max) {
     int ret;
 
     __asm__ volatile (
-        "mov $16, %%rax\n"
+        "mov $7, %%rax\n"
         "syscall\n"
         : "=a"(ret)
         : "D"(path), "S"(entries), "d"((uint64_t)max)

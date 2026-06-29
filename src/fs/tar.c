@@ -46,8 +46,6 @@ void *tar_find(const char *name, uint64_t *size_out) {
         offset += 512 + ((file_size + 511) & ~511ULL);
     }
 
-    serial_printf("[E] tar.c: tar_find() -> '%s' not found\n", name);
-
     return NULL;
 }
 

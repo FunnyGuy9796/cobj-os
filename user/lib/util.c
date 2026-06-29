@@ -178,3 +178,55 @@ int isdigit(const char *s) {
 
     return 1;
 }
+
+uint64_t strtoull(const char *str, char **endptr, int base) {
+    uint64_t result = 0;
+
+    while (*str == ' ' || *str == '\t' || *str == '\n')
+        str++;
+
+    if (*str == '+')
+        str++;
+
+    if (base == 0) {
+        if (*str == '0') {
+            str++;
+
+            if (*str == 'x' || *str == 'X') {
+                base = 16;
+                str++;
+            } else
+                base = 8;
+        } else
+            base = 10;
+    } else if (base == 16) {
+        if (*str == '0' && (*(str + 1) == 'x' || *(str + 1) == 'X'))
+            str += 2;
+    }
+
+    const char *start = str;
+
+    while (*str) {
+        int digit;
+
+        if (*str >= '0' && *str <= '9')
+            digit = *str - '0';
+        else if (*str >= 'a' && *str <= 'f')
+            digit = *str - 'a' + 10;
+        else if (*str >= 'A' && *str <= 'F')
+            digit = *str - 'A' + 10;
+        else
+            break;
+
+        if (digit >= base)
+            break;
+
+        result = result * base + digit;
+        str++;
+    }
+
+    if (endptr)
+        *endptr = (char *)(str == start ? start : str);
+
+    return result;
+}

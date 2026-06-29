@@ -6,12 +6,22 @@
 #include "../mm/vmm.h"
 #include "../loader/elf.h"
 #include "../userspace/cpu.h"
+#include "../userspace/port.h"
 #include "../arch/tss.h"
 #include "../fs/fs.h"
 #include "../fs/tar.h"
 #include "../misc/printf.h"
 
 #define MAX_FDS 64
+
+#define FD_STDIN  0
+#define FD_STDOUT 1
+#define FD_STDERR 2
+#define FD_RESERVED 3
+
+#define MAX_PORTS 64
+
+typedef struct port port_t;
 
 typedef struct vm_region {
     uint64_t base;
@@ -27,6 +37,7 @@ typedef struct process {
     uint64_t heap_top;
     vm_region_t *regions;
     file_t *fds[MAX_FDS];
+    port_t *ports[MAX_PORTS];
     struct process *next;
 } process_t;
 

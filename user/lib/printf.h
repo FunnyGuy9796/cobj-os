@@ -3,6 +3,7 @@
 
 #include <stdarg.h>
 #include "util.h"
+#include "fs.h"
 
 int ksnprintf(char *buf, size_t size, const char *fmt, ...);
 int printf(const char *fmt, ...);
