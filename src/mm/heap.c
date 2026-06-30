@@ -63,7 +63,9 @@ void *kmalloc(uint64_t size) {
         return (void *)block;
     }
 
-    uint64_t phys = pmm_alloc_page();
+    uint64_t total = size + sizeof(slab_header_t);
+    uint64_t pages = (total + PAGE_SIZE - 1) / PAGE_SIZE;
+    uint64_t phys = pmm_alloc_pages(pages);
 
     if (!phys)
         panic("heap.c: kmalloc() -> out of memory for large allocator\n");
@@ -72,7 +74,7 @@ void *kmalloc(uint64_t size) {
     slab_header_t *hdr = (slab_header_t *)raw;
 
     hdr->cache_idx = SLAB_CLASS_COUNT;
-    hdr->_pad = 0;
+    hdr->_pad = pages;
 
     return (void *)(raw + sizeof(slab_header_t));
 }

@@ -6,7 +6,7 @@ static uint64_t next_proc_id = 0;
 
 extern void jump_userspace(uint64_t rip, uint64_t rsp);
 
-uint64_t proc_create(const uint8_t *elf_data, uint64_t elf_size, const char **argv, int argc) {
+uint64_t proc_create(const uint8_t *elf_data, uint64_t elf_size, const char **argv, int argc, const char *parent_cwd) {
     addr_space_t *space = vmm_create_user_space();
     uint64_t entry = elf_load(space, elf_data, elf_size);
 
@@ -72,6 +72,13 @@ uint64_t proc_create(const uint8_t *elf_data, uint64_t elf_size, const char **ar
     proc->addr_space = space;
     proc->thread = thread;
     proc->heap_top = 0x10000000ULL;
+
+    if (parent_cwd && parent_cwd[0])
+        strncpy(proc->cwd, parent_cwd, 255);
+    else
+        strncpy(proc->cwd, "0:/", 255);
+    
+    proc->cwd[255] = '\0';
 
     memset(proc->fds, 0, sizeof(proc->fds));
     memset(proc->ports, 0, sizeof(proc->ports));
@@ -146,14 +153,23 @@ void proc_cleanup() {
     }
 
     if (!alive) {
-        uint64_t init_size = 0;
-        void *init_elf = tar_find("init/init", &init_size);
+        fsnode_t *init_node = vfs_resolve("0:/init/init");
 
-        if (!init_elf)
+        if (!init_node)
             panic("process.c: proc_cleanup() -> init not found\n");
         
-        const char *argv[] = { "init/init" };
+        uint64_t init_size = init_node->size;
+        void *init_elf = kmalloc(init_size);
+        int n = init_node->ops->read(init_node, init_elf, init_size, 0);
 
-        proc_create(init_elf, init_size, argv, 1);
+        if (n < 0 || (uint64_t)n != init_size)
+            panic("process.c: proc_cleanup() -> unable to read init binary\n");
+        
+        if (init_node->ops->release)
+            init_node->ops->release(init_node);
+        
+        const char *argv[] = { "0:/init/init" };
+
+        proc_create(init_elf, init_size, argv, 1, NULL);
     }
 }

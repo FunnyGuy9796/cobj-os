@@ -171,7 +171,7 @@ void isr_handler(int_frame_t *frame) {
 
         serial_printf("[E] userspace exception: pid=%d (%s) rip=%p\n",
             curr_thread->process ? curr_thread->process->pid : -1, name, frame->rip);
-        serial_printf("  cr4=%x cr3=%x cr2=%x cr0=%x\n  r15=%x r14=%x r13=%x r12=%x\n  r11=%x r10=%x r9=%x r8=%x\n  rbp=%x rdi=%x rsi=%x rdx=%x\n  rcx=%x rbx=%x rax=%x rsp=%x cs=%x\n",
+        serial_printf("  cr4=%lx cr3=%lx cr2=%lx cr0=%lx\n  r15=%lx r14=%lx r13=%lx r12=%lx\n  r11=%lx r10=%lx r9=%lx r8=%lx\n  rbp=%lx rdi=%lx rsi=%lx rdx=%lx\n  rcx=%lx rbx=%lx rax=%lx rsp=%lx cs=%lx\n",
             frame->cr4, frame->cr3, frame->cr2, frame->cr0, frame->r15, frame->r14,
             frame->r13, frame->r12, frame->r11, frame->r10, frame->r9, frame->r8, frame->rbp, frame->rdi, frame->rsi,
             frame->rdx, frame->rcx, frame->rbx, frame->rax, frame->rsp, frame->cs);
@@ -186,7 +186,7 @@ void isr_handler(int_frame_t *frame) {
     }
 
     serial_printf("[EXCEPTION] vector=%d error=%x rip=%p rflags=%p\n", frame->vector, frame->error, frame->rip, frame->rflags);
-    serial_printf("  cr4=%x cr3=%x cr2=%x cr0=%x\n  r15=%x r14=%x r13=%x r12=%x\n  r11=%x r10=%x r9=%x r8=%x\n  rbp=%x rdi=%x rsi=%x rdx=%x\n  rcx=%x rbx=%x rax=%x rsp=%x cs=%x\n",
+    serial_printf("  cr4=%lx cr3=%lx cr2=%lx cr0=%lx\n  r15=%lx r14=%lx r13=%lx r12=%lx\n  r11=%lx r10=%lx r9=%lx r8=%lx\n  rbp=%lx rdi=%lx rsi=%lx rdx=%lx\n  rcx=%lx rbx=%lx rax=%lx rsp=%lx cs=%lx\n",
         frame->cr4, frame->cr3, frame->cr2, frame->cr0, frame->r15, frame->r14,
         frame->r13, frame->r12, frame->r11, frame->r10, frame->r9, frame->r8, frame->rbp, frame->rdi, frame->rsi,
         frame->rdx, frame->rcx, frame->rbx, frame->rax, frame->rsp, frame->cs);

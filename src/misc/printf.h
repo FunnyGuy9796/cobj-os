@@ -5,7 +5,7 @@
 #include "util.h"
 #include "../serial/serial.h"
 
-int ksnprintf(char *buf, size_t size, const char *fmt, ...);
+int snprintf(char *buf, size_t size, const char *fmt, ...);
 int serial_printf(const char *fmt, ...);
 int serial_vprintf(const char *fmt, va_list args);
 void panic(const char *fmt, ...);

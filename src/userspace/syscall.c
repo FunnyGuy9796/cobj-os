@@ -4,9 +4,84 @@
 #include "../multi/thread.h"
 #include "../multi/process.h"
 #include "../fs/tar.h"
+#include "../mm/vmm.h"
 #include "../mm/heap.h"
 #include "../arch/idt.h"
 #include "../arch/rtc.h"
+
+static int copy_to_user(void *user_dst, const void *kernel_src, size_t len) {
+    uint8_t *dst = (uint8_t *)user_dst;
+    const uint8_t *src = (const uint8_t *)kernel_src;
+
+    while (len > 0) {
+        uintptr_t va = (uintptr_t)dst;
+        uintptr_t page_base = va & ~0xfffULL;
+        uintptr_t page_off = va - page_base;
+        size_t chunk = PAGE_SIZE - page_off;
+
+        if (chunk > len)
+            chunk = len;
+
+        if (va >= USER_SPACE_TOP)
+            return -1;
+
+        uint64_t phys;
+        uint64_t flags;
+
+        if (vmm_get_mapping(curr_thread->process->addr_space, page_base, &phys, &flags) < 0)
+            return -1;
+
+        if (!(flags & PAGE_PRESENT) || !(flags & PAGE_USER) || !(flags & PAGE_WRITE))
+            return -1;
+
+        void *kdst = (void *)(phys + page_off + hhdm_offset);
+
+        memcpy(kdst, src, chunk);
+
+        dst += chunk;
+        src += chunk;
+        len -= chunk;
+    }
+
+    return 0;
+}
+
+int copy_from_user(void *kernel_dst, const void *user_src, size_t len) {
+    uint8_t *dst = (uint8_t *)kernel_dst;
+    const uint8_t *src = (const uint8_t *)user_src;
+
+    while (len > 0) {
+        uintptr_t va = (uintptr_t)src;
+        uintptr_t page_base = va & ~0xfffULL;
+        uintptr_t page_off = va - page_base;
+        size_t chunk = PAGE_SIZE - page_off;
+
+        if (chunk > len)
+            chunk = len;
+
+        if (va >= USER_SPACE_TOP)
+            return -1;
+
+        uint64_t phys;
+        uint64_t flags;
+
+        if (vmm_get_mapping(curr_thread->process->addr_space, page_base, &phys, &flags) < 0)
+            return -1;
+
+        if (!(flags & PAGE_PRESENT) || !(flags & PAGE_USER))
+            return -1;
+
+        void *ksrc = (void *)(phys + page_off + hhdm_offset);
+
+        memcpy(dst, ksrc, chunk);
+
+        dst += chunk;
+        src += chunk;
+        len -= chunk;
+    }
+
+    return 0;
+}
 
 void sys_exit(uint64_t code) {
     process_t *proc = curr_thread->process;
@@ -121,7 +196,7 @@ uint64_t sys_spawn(const char *name, const char **argv, int argc) {
         argv_copies[i][len] = '\0';
     }
 
-    uint64_t pid = proc_create(elf, size, (const char **)argv_copies, argc);
+    uint64_t pid = proc_create(elf, size, (const char **)argv_copies, argc, curr_thread->process->cwd);
 
     for (int i = 0; i < argc; i++)
         kfree(argv_copies[i]);
@@ -199,18 +274,19 @@ int sys_open(const char *path) {
 
     if (fd == -1)
         return -1;
+    
+    fsnode_t *node = vfs_resolve(path);
 
-    uint64_t size = 0;
-    void *data = tar_find(path, &size);
-
-    if (!data)
+    if (!node)
         return -1;
-
+    
     file_t *file = kmalloc(sizeof(file_t));
 
-    file->data = data;
-    file->size = size;
+    file->node = node;
     file->offset = 0;
+    file->flags = VFS_READ;
+
+    node->refcount++;
 
     proc->fds[fd] = file;
 
@@ -238,17 +314,12 @@ int64_t sys_read(int fd, void *buf, uint64_t size) {
         return -1;
     
     file_t *file = proc->fds[fd];
-    uint64_t remaining = file->size - file->offset;
-    uint64_t to_read = size < remaining ? size : remaining;
+    int n = file->node->ops->read(file->node, buf, size, file->offset);
 
-    if (to_read == 0)
-        return 0;
+    if (n > 0)
+        file->offset += n;
     
-    memcpy(buf, (uint8_t *)file->data + file->offset, to_read);
-
-    file->offset += to_read;
-
-    return (int64_t)to_read;
+    return n;
 }
 
 int64_t sys_write(int fd, const void *buf, uint64_t size) {
@@ -270,7 +341,14 @@ int sys_close(int fd) {
     if (fd < 0 || fd >= MAX_FDS || !proc->fds[fd])
         return -1;
     
-    kfree(proc->fds[fd]);
+    file_t *file = proc->fds[fd];
+
+    file->node->refcount--;
+
+    if (file->node->refcount == 0 && file->node->ops->release)
+        file->node->ops->release(file->node);
+    
+    kfree(file);
 
     proc->fds[fd] = NULL;
 
@@ -301,8 +379,28 @@ int sys_listprocs(proc_info_t *buf, int max) {
     return count;
 }
 
-int sys_listdir(const char *path, tar_entry_t *entries, int max) {
-    return tar_listdir(path, entries, max);
+int sys_listdir(const char *path, dirent_t *entries, int max) {
+    fsnode_t *dir = vfs_resolve(path);
+
+    if (!dir)
+        return -1;
+
+    if (dir->type != NODE_DIR) {
+        if (dir->ops && dir->ops->release)
+            dir->ops->release(dir);
+
+        return -1;
+    }
+
+    int count = 0;
+
+    while (count < max && dir->ops->readdir(dir, count, &entries[count]) == 0)
+        count++;
+
+    if (dir->ops && dir->ops->release)
+        dir->ops->release(dir);
+
+    return count;
 }
 
 port_token_t sys_port_create() {
@@ -345,6 +443,60 @@ int sys_port_destroy(port_token_t token) {
     }
 
     return -1;
+}
+
+int sys_get_cwd(char *buf, size_t buf_size) {
+    process_t *proc = curr_thread->process;
+    size_t len = strlen(proc->cwd);
+
+    if (buf_size == 0)
+        return -1;
+    
+    size_t to_copy = (len < buf_size - 1) ? len : buf_size - 1;
+
+    if (copy_to_user(buf, proc->cwd, to_copy) < 0)
+        return -1;
+    
+    char nul = '\0';
+
+    if (copy_to_user(buf + to_copy, &nul, 1) < 0)
+        return -1;
+    
+    return (int)to_copy;
+}
+
+int sys_set_cwd(char *buf, size_t buf_size) {
+    process_t *proc = curr_thread->process;
+
+    if (buf_size == 0)
+        return -1;
+
+    char tmp[256];
+    size_t to_copy = (buf_size < sizeof(tmp) - 1) ? buf_size : sizeof(tmp) - 1;
+
+    if (copy_from_user(tmp, buf, to_copy) < 0)
+        return -1;
+
+    tmp[to_copy] = '\0';
+
+    fsnode_t *node = vfs_resolve(tmp);
+
+    if (!node)
+        return -1;
+    
+    if (node->type != NODE_DIR) {
+        if (node->ops && node->ops->release)
+            node->ops->release(node);
+        
+        return -1;
+    }
+
+    if (node->ops && node->ops->release)
+        node->ops->release(node);
+    
+    memcpy(proc->cwd, tmp, to_copy + 1);
+
+    return (int)to_copy;
 }
 
 uint64_t syscall_dispatch(uint64_t number, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
@@ -410,7 +562,7 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t arg0, uint64_t arg1, uint64_
             return (uint64_t)sys_listprocs((proc_info_t *)arg0, (int)arg1);
         
         case SYS_LISTDIR:
-            return (uint64_t)sys_listdir((const char *)arg0, (tar_entry_t *)arg1, (int)arg2);
+            return (uint64_t)sys_listdir((const char *)arg0, (dirent_t *)arg1, (int)arg2);
         
         case SYS_WRITE:
             return (uint64_t)sys_write((int)arg0, (const void *)arg1, arg2);
@@ -426,6 +578,12 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t arg0, uint64_t arg1, uint64_
         
         case SYS_PORT_DESTROY:
             return (uint64_t)sys_port_destroy((port_token_t)arg0);
+        
+        case SYS_GET_CWD:
+            return (uint64_t)sys_get_cwd((char *)arg0, (size_t)arg1);
+        
+        case SYS_SET_CWD:
+            return (uint64_t)sys_set_cwd((char *)arg0, (size_t)arg1);
 
         default: {
             serial_printf("[D] syscall number=%d arg0=%p\n", number, arg0);

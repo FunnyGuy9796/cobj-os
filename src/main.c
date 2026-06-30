@@ -15,6 +15,8 @@
 #include "multi/thread.h"
 #include "multi/process.h"
 #include "fs/tar.h"
+#include "fs/vfs.h"
+#include "fs/tar_vfs.h"
 
 __attribute__((used, section(".limine_requests_start")))
 static volatile uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
@@ -56,15 +58,30 @@ void kidle() {
     
     tar_init(initrd->address, initrd->size);
 
-    uint64_t init_size = 0;
-    void *init_elf = tar_find("init/init", &init_size);
+    vfs_drives[0].root = tar_get_root();
+    vfs_drives[0].present = 1;
 
-    if (!init_elf)
+    strncpy(vfs_drives[0].label, "initrd", sizeof(vfs_drives[0].label));
+
+    fsnode_t *init_node = vfs_resolve("0:/init/init");
+
+    if (!init_node)
         panic("main.c: kidle() -> init not found\n");
     
-    const char *argv[] = { "init/init" };
+    uint64_t init_size = init_node->size;
+    void *init_elf = kmalloc(init_size);
+    int n = init_node->ops->read(init_node, init_elf, init_size, 0);
 
-    proc_create(init_elf, init_size, argv, 1);
+    if (n < 0 || (uint64_t)n != init_size)
+        panic("main.c: kidle() -> unable to read init binary\n");
+    
+    if (init_node->ops->release)
+        init_node->ops->release(init_node);
+    
+    const char *argv[] = { "0:/init/init" };
+
+    proc_create(init_elf, init_size, argv, 1, NULL);
+    kfree(init_elf);
 
     for (;;)
         __asm__ volatile ("hlt");

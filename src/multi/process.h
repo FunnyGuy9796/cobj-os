@@ -8,8 +8,8 @@
 #include "../userspace/cpu.h"
 #include "../userspace/port.h"
 #include "../arch/tss.h"
-#include "../fs/fs.h"
-#include "../fs/tar.h"
+#include "../fs/vfs.h"
+#include "../fs/tar_vfs.h"
 #include "../misc/printf.h"
 
 #define MAX_FDS 64
@@ -38,6 +38,7 @@ typedef struct process {
     vm_region_t *regions;
     file_t *fds[MAX_FDS];
     port_t *ports[MAX_PORTS];
+    char cwd[256];
     struct process *next;
 } process_t;
 
@@ -49,7 +50,7 @@ typedef struct {
 
 extern process_t *proc_list;
 
-uint64_t proc_create(const uint8_t *elf_data, uint64_t elf_size, const char **argv, int argc);
+uint64_t proc_create(const uint8_t *elf_data, uint64_t elf_size, const char **argv, int argc, const char *parent_cwd);
 process_t *proc_find(uint64_t pid);
 void proc_cleanup();
 

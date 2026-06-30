@@ -30,6 +30,10 @@ typedef struct {
     uint64_t size;
 } tar_entry_t;
 
+extern uint8_t *tar_data;
+extern uint64_t tar_size;
+
+uint64_t tar_parse_octal(const char *s, int len);
 void tar_init(void *data, uint64_t size);
 void *tar_find(const char *name, uint64_t *size_out);
 int tar_listdir(const char *path, tar_entry_t *entries, int max);

@@ -100,6 +100,21 @@ uint64_t *vmm_get_pte(addr_space_t *space, uint64_t virt, int alloc) {
     return &pt[PT_IDX(virt)];
 }
 
+int vmm_get_mapping(addr_space_t *space, uint64_t virt, uint64_t *phys_out, uint64_t *flags_out) {
+    uint64_t *pte = vmm_get_pte(space, virt, 0);
+
+    if (!pte || !(*pte & PAGE_PRESENT))
+        return -1;
+
+    if (phys_out)
+        *phys_out = ENTRY_TO_PHYS(*pte);
+
+    if (flags_out)
+        *flags_out = *pte & 0xfffULL;
+
+    return 0;
+}
+
 void vmm_map_page(addr_space_t *space, uint64_t virt, uint64_t phys, uint64_t flags) {
     uint64_t *pte = vmm_get_pte(space, virt, 1);
 

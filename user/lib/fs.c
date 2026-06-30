@@ -56,7 +56,7 @@ int close(int fd) {
     return ret;
 }
 
-int listdir(const char *path, tar_entry_t *entries, int max) {
+int listdir(const char *path, dirent_t *entries, int max) {
     int ret;
 
     __asm__ volatile (
@@ -66,6 +66,32 @@ int listdir(const char *path, tar_entry_t *entries, int max) {
         : "D"(path), "S"(entries), "d"((uint64_t)max)
         : "rcx", "r11", "memory"
     );
-    
+
     return ret;
+}
+
+int getcwd(char *path) {
+    int ret;
+
+    __asm__ volatile (
+        "mov $21, %%rax\n"
+        "syscall\n"
+        : "=a"(ret)
+        : "D"(path)
+        : "rcx", "r11", "memory"
+    );
+
+    return ret;
+}
+
+int setcwd(const char *path, size_t len) {
+    int ret;
+
+    __asm__ volatile (
+        "mov $22, %%rax\n"
+        "syscall\n"
+        : "=a"(ret)
+        : "D"(path), "S"((uint64_t)len)
+        : "rcx", "r11", "memory"
+    );
 }

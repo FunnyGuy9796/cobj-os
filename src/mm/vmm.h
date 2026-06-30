@@ -29,6 +29,7 @@ extern addr_space_t kernel_addr_space;
 
 void vmm_init();
 uint64_t *vmm_get_pte(addr_space_t *space, uint64_t virt, int alloc);
+int vmm_get_mapping(addr_space_t *space, uint64_t virt, uint64_t *phys_out, uint64_t *flags_out);
 void vmm_map_page(addr_space_t *space, uint64_t virt, uint64_t phys, uint64_t flags);
 void vmm_unmap_page(addr_space_t *space, uint64_t virt);
 void vmm_switch_space(addr_space_t *space);

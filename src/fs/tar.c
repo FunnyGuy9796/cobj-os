@@ -2,10 +2,10 @@
 #include "../misc/printf.h"
 #include "../misc/mem.h"
 
-static uint8_t *tar_data = NULL;
-static uint64_t tar_size = 0;
+uint8_t *tar_data = NULL;
+uint64_t tar_size = 0;
 
-static uint64_t tar_parse_octal(const char *s, int len) {
+uint64_t tar_parse_octal(const char *s, int len) {
     uint64_t val = 0;
 
     for (int i = 0; i < len; i++) {
