@@ -181,7 +181,7 @@ int main(int argc, char **argv) {
             return 1;
         }
 
-        printf("cobj[%s]$> ", cwd);
+        printf("cobj[%s]> ", cwd);
         readline(buf, sizeof(buf));
 
         if (buf[0] == '\0')

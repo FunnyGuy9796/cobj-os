@@ -131,7 +131,7 @@ int main(int argc, char **argv) {
     int count = listdir(target, entries, MAX_ENTRIES);
 
     if (count < 0) {
-        printf("ls: %s: no such file or directory\n", input);
+        printf("ls: %s: no such directory\n", input);
         free(entries);
 
         return 1;
@@ -141,7 +141,7 @@ int main(int argc, char **argv) {
         if (entries[i].type == NODE_DIR)
             printf("%s/\n", entries[i].name);
         else
-            printf("%s (%d bytes)\n", entries[i].name, entries[i].size);
+            printf("%s\n", entries[i].name);
     }
 
     free(entries);

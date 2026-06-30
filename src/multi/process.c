@@ -115,7 +115,14 @@ void proc_cleanup() {
         if (proc->thread->state == THREAD_DEAD) {
             for (int i = 0; i < MAX_FDS; i++) {
                 if (proc->fds[i]) {
-                    kfree(proc->fds[i]);
+                    file_t *f = proc->fds[i];
+
+                    f->node->refcount--;
+
+                    if (f->node->refcount == 0 && f->node->ops->release)
+                        f->node->ops->release(f->node);
+                        
+                    kfree(f);
 
                     proc->fds[i] = NULL;
                 }

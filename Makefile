@@ -79,7 +79,7 @@ iso: elf initrd.tar
 run: iso
 	qemu-system-x86_64 \
         -M q35 \
-        -m 256M \
+        -m 1G \
         -cdrom $(NAME).iso \
         -boot d \
         -nographic \
