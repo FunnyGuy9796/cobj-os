@@ -49,6 +49,7 @@ typedef struct {
 } proc_info_t;
 
 extern process_t *proc_list;
+extern volatile bool proc_needs_cleanup;
 
 uint64_t proc_create(const uint8_t *elf_data, uint64_t elf_size, const char **argv, int argc, const char *parent_cwd);
 process_t *proc_find(uint64_t pid);

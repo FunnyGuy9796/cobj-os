@@ -9,6 +9,8 @@
 #include "../arch/idt.h"
 #include "../arch/rtc.h"
 
+volatile bool proc_needs_cleanup = false;
+
 static int copy_to_user(void *user_dst, const void *kernel_src, size_t len) {
     uint8_t *dst = (uint8_t *)user_dst;
     const uint8_t *src = (const uint8_t *)kernel_src;
@@ -95,9 +97,25 @@ void sys_exit(uint64_t code) {
         }
     }
 
+    for (int i = FD_RESERVED; i < MAX_FDS; i++) {
+        if (proc->fds[i]) {
+            file_t *f = proc->fds[i];
+
+            f->node->refcount--;
+
+            if (f->node->refcount == 0 && f->node->ops->release)
+                f->node->ops->release(f->node);
+                
+            kfree(f);
+
+            proc->fds[i] = NULL;
+        }
+    }
+
     runqueue_remove(curr_thread);
     
     curr_thread->state = THREAD_DEAD;
+    proc_needs_cleanup = true;
 
     thread_wake_pid(dying_pid);
 
@@ -175,12 +193,18 @@ int sys_munmap(uint64_t addr, uint64_t size) {
 }
 
 uint64_t sys_spawn(const char *name, const char **argv, int argc) {
-    uint64_t size = 0;
-    void *elf = tar_find(name, &size);
+    fsnode_t *prog_node = vfs_resolve(name);
 
-    if (!elf)
+    if (!prog_node)
         return (uint64_t)-1;
+    
+    uint64_t prog_size = prog_node->size;
+    void *prog_elf = kmalloc(prog_size);
+    int n = prog_node->ops->read(prog_node, prog_elf, prog_size, 0);
 
+    if (n < 0 || (uint64_t)n != prog_size)
+        return (uint64_t)-1;
+    
     char **argv_copies = kmalloc(sizeof(char *) * argc);
 
     for (int i = 0; i < argc; i++) {
@@ -195,13 +219,16 @@ uint64_t sys_spawn(const char *name, const char **argv, int argc) {
 
         argv_copies[i][len] = '\0';
     }
+    
+    if (prog_node->ops->release)
+        prog_node->ops->release(prog_node);
 
-    uint64_t pid = proc_create(elf, size, (const char **)argv_copies, argc, curr_thread->process->cwd);
+    uint64_t pid = proc_create(prog_elf, prog_size, (const char **)argv_copies, argc, curr_thread->process->cwd);
 
     for (int i = 0; i < argc; i++)
         kfree(argv_copies[i]);
 
-    kfree(argv_copies);
+    kfree(prog_elf);
 
     return pid;
 }
@@ -240,10 +267,34 @@ int sys_kill(uint64_t pid) {
 
     if (!proc)
         return -1;
+    
+    for (int i = 0; i < MAX_PORTS; i++) {
+        if (proc->ports[i]) {
+            port_destroy(proc->ports[i]);
+
+            proc->ports[i] = NULL;
+        }
+    }
+
+    for (int i = FD_RESERVED; i < MAX_FDS; i++) {
+        if (proc->fds[i]) {
+            file_t *f = proc->fds[i];
+
+            f->node->refcount--;
+
+            if (f->node->refcount == 0 && f->node->ops->release)
+                f->node->ops->release(f->node);
+                
+            kfree(f);
+
+            proc->fds[i] = NULL;
+        }
+    }
 
     runqueue_remove(proc->thread);
 
     proc->thread->state = THREAD_DEAD;
+    proc_needs_cleanup = true;
 
     if (proc->thread == curr_thread) {
         __asm__ volatile (
@@ -285,8 +336,6 @@ int sys_open(const char *path) {
     file->node = node;
     file->offset = 0;
     file->flags = VFS_READ;
-
-    node->refcount++;
 
     proc->fds[fd] = file;
 

@@ -9,22 +9,20 @@ static int parse_path(const char *path, int *drive_num, const char **rel_path) {
 
     while (*colon && *colon != ':')
         colon++;
+    
+    if (*colon != ':')
+        return -1;
+    
+    *drive_num = 0;
 
-    if (*colon == ':') {
-        *drive_num = 0;
+    for (const char *p = path; p < colon; p++) {
+        if (*p < '0' || *p > '9')
+            return -1;
 
-        for (const char *p = path; p < colon; p++) {
-            if (*p < '0' || *p > '9')
-                return -1;
-
-            *drive_num = (*drive_num * 10) + (*p - '0');
-        }
-
-        *rel_path = colon + 1;
-    } else {
-        *drive_num = 0;
-        *rel_path = path;
+        *drive_num = (*drive_num * 10) + (*p - '0');
     }
+
+    *rel_path = colon + 1;
 
     return 0;
 }

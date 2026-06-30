@@ -72,6 +72,7 @@ uint64_t proc_create(const uint8_t *elf_data, uint64_t elf_size, const char **ar
     proc->addr_space = space;
     proc->thread = thread;
     proc->heap_top = 0x10000000ULL;
+    proc->regions = NULL;
 
     if (parent_cwd && parent_cwd[0])
         strncpy(proc->cwd, parent_cwd, 255);
@@ -113,21 +114,6 @@ void proc_cleanup() {
         process_t *proc = *curr;
 
         if (proc->thread->state == THREAD_DEAD) {
-            for (int i = 0; i < MAX_FDS; i++) {
-                if (proc->fds[i]) {
-                    file_t *f = proc->fds[i];
-
-                    f->node->refcount--;
-
-                    if (f->node->refcount == 0 && f->node->ops->release)
-                        f->node->ops->release(f->node);
-                        
-                    kfree(f);
-
-                    proc->fds[i] = NULL;
-                }
-            }
-
             vm_region_t *region = proc->regions;
 
             while (region) {

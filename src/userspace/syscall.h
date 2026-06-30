@@ -2,6 +2,7 @@
 #define SYSCALL_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #define SYS_EXIT 0
 #define SYS_PRINT 1

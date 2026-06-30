@@ -1,8 +1,23 @@
 #include "proc.h"
+#include "fs.h"
+#include "util.h"
 
 uint64_t spawn(const char *name, const char **argv, int argc) {
     const char *new_argv[argc + 1];
     uint64_t ret;
+    char resolved[256];
+
+    if (!strchr(name, ':')) {
+        char cwd[256];
+
+        if (getcwd(cwd) < 0)
+            return (uint64_t)-1;
+
+        if (join(resolved, sizeof(resolved), cwd, name) < 0)
+            return (uint64_t)-1;
+
+        name = resolved;
+    }
 
     new_argv[0] = name;
 

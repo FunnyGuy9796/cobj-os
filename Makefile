@@ -10,7 +10,7 @@ CRT0 := ./build/userlib/crt0.o
 
 NAME := cobj
 
-CFLAGS := -ffreestanding -fno-stack-protector -fno-pic -mno-red-zone -mcmodel=kernel -std=c11 -O2 -Wall -Wextra -mno-sse -mno-sse2 -mno-avx -mno-avx2
+CFLAGS := -ffreestanding -fno-stack-protector -fno-pic -mno-red-zone -mcmodel=kernel -std=c11 -O2 -Wall -Wextra -mno-sse -mno-sse2 -mno-avx -mno-avx2 -g
 LDFLAGS := -T linker.ld -nostdlib -lgcc
 
 USER_CFLAGS := -ffreestanding -fno-stack-protector -nostdlib -static -fno-pie -mno-red-zone -std=c11 -O2 -mno-sse -mno-sse2
@@ -18,10 +18,10 @@ USER_CFLAGS := -ffreestanding -fno-stack-protector -nostdlib -static -fno-pie -m
 LIMINE_DIR := $(HOME)/src/limine
 ISO_ROOT := ./iso_root
 
-USER_PROGS := uptime datetime clear echo ps pkill ls cat
+USER_PROGS_BIN := bin/uptime bin/datetime bin/clear bin/echo bin/ps bin/pkill bin/ls bin/cat
 USER_PROGS_INIT := init/init init/shell
 
-ALL_PROGS := $(USER_PROGS) $(USER_PROGS_INIT)
+ALL_PROGS := $(USER_PROGS_BIN) $(USER_PROGS_INIT)
 USER_ELFS := $(patsubst %,./build/user/%,$(ALL_PROGS))
 
 .PHONY: all clean run elf iso

@@ -9,7 +9,7 @@ static char buf[512];
 int main(int argc, char **argv) {
     printf("\033[2J\033[H");
 
-    int fd = open("info.txt");
+    int fd = open("0:/info.txt");
 
     if (fd < 0) {
         printf("failed to open info.txt\n");
@@ -26,7 +26,10 @@ int main(int argc, char **argv) {
     }
 
     close(fd);
-    spawn("init/shell", NULL, 0);
+
+    const char *shell_args[] = {"--bindir", "0:/bin"};
+
+    spawn("0:/init/shell", shell_args, 2);
 
     return 0;
 }

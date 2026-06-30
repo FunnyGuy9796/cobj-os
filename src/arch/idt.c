@@ -212,9 +212,12 @@ void irq_handler(uint64_t vector) {
             boot_epoch = rtc_to_epoch(&boot_time);
             boot_ticks = apic_timer_ticks();
         }
+        
+        if (proc_needs_cleanup) {
+            proc_needs_cleanup = false;
 
-        if (lapic_timer_ticks % 500 == 0)
             proc_cleanup();
+        }
 
         if (threads_enabled)
             schedule();

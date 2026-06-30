@@ -20,6 +20,7 @@ typedef struct {
     uint64_t size;
 } dirent_t;
 
+int join(char *out, size_t out_size, const char *cwd, const char *input);
 int open(const char *path);
 int64_t read(int fd, void *buf, uint64_t size);
 int64_t write(int fd, const void *buf, uint64_t size);
