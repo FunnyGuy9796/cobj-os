@@ -17,6 +17,9 @@
 #include "fs/tar.h"
 #include "fs/vfs.h"
 #include "fs/tar_vfs.h"
+#include "fs/dev_vfs.h"
+#include "fs/dev/console.h"
+#include "fs/dev/fb.h"
 #include "fb/fb.h"
 #include "fb/font.h"
 #include "fb/fbcon.h"
@@ -69,11 +72,7 @@ void kidle() {
     fb_clear(0xff000000);
     
     tar_init(initrd->address, initrd->size);
-
-    vfs_drives[0].root = tar_get_root();
-    vfs_drives[0].present = 1;
-
-    strncpy(vfs_drives[0].label, "initrd", sizeof(vfs_drives[0].label));
+    tarfs_init();
 
     fsnode_t *font_node = vfs_resolve("0:/etc/Lat2-Terminus16.psf");
 
@@ -101,6 +100,10 @@ void kidle() {
         for (;;)
             __asm__ volatile ("hlt");
     }
+
+    devfs_init();
+    console_dev_init();
+    fb_dev_init();
 
     fsnode_t *init_node = vfs_resolve("0:/init/init");
 

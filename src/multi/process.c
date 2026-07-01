@@ -81,7 +81,24 @@ uint64_t proc_create(const uint8_t *elf_data, uint64_t elf_size, const char **ar
     
     proc->cwd[255] = '\0';
 
+    static const char *std_paths[] = { "1:/stdin", "1:/stdout" };
+
     memset(proc->fds, 0, sizeof(proc->fds));
+
+    for (int i = 0; i < 2; i++) {
+        fsnode_t *node = vfs_resolve(std_paths[i]);
+
+        if (node) {
+            file_t *f = kmalloc(sizeof(file_t));
+
+            f->node = node;
+            f->offset = 0;
+            f->flags = (i == 0) ? VFS_READ : VFS_WRITE;
+
+            proc->fds[i] = f;
+        }
+    }
+
     memset(proc->ports, 0, sizeof(proc->ports));
 
     proc->next = proc_list;

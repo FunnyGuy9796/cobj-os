@@ -5,6 +5,7 @@
 #include "../mm/heap.h"
 #include "../misc/printf.h"
 
-fsnode_t *tar_get_root();
+void tarfs_init();
+fsnode_t *tarfs_get_root();
 
 #endif

@@ -8,12 +8,22 @@
 #include <fs.h>
 
 static char bin_dir[256] = "0:/";
+static char cwd[256];
 
 static uint64_t spawn_search(const char *name, const char **argv, int argc) {
+    char candidate[256];
+
+    if (strncmp(name, "./", 2) == 0 || strncmp(name, "../", 3) == 0) {
+        const char *rel = (name[1] == '/') ? name + 2 : name;
+        
+        if (join(candidate, sizeof(candidate), cwd, rel) < 0)
+            return (uint64_t)-1;
+
+        return spawn(candidate, argv, argc);
+    }
+
     if (strchr(name, '/') || strchr(name, ':'))
         return spawn(name, argv, argc);
-
-    char candidate[256];
 
     snprintf(candidate, sizeof(candidate), "%s/%s", bin_dir, name);
 
@@ -80,8 +90,6 @@ static void parse_args(char *input) {
             *p++ = '\0';
     }
 }
-
-static char cwd[256];
 
 int main(int argc, char **argv) {
     clear();

@@ -338,20 +338,6 @@ int sys_open(const char *path) {
 }
 
 int64_t sys_read(int fd, void *buf, uint64_t size) {
-    if (fd == FD_STDIN) {
-        char *cbuf = (char *)buf;
-        uint64_t i = 0;
-
-        while (i < size) {
-            cbuf[i] = kbd_getchar();
-
-            if (cbuf[i++] == '\n')
-                break;
-        }
-
-        return (int64_t)i;
-    }
-
     process_t *proc = curr_thread->process;
 
     if (fd < 0 || fd >= MAX_FDS || !proc->fds[fd])
@@ -367,16 +353,18 @@ int64_t sys_read(int fd, void *buf, uint64_t size) {
 }
 
 int64_t sys_write(int fd, const void *buf, uint64_t size) {
-    if (fd == FD_STDOUT || fd == FD_STDERR) {
-        const char *cbuf = (const char *)buf;
+    process_t *proc = curr_thread->process;
 
-        for (uint64_t i = 0; i < size; i++)
-            fbcon_putchar(cbuf[i]);
+    if (fd < 0 || fd >= MAX_FDS || !proc->fds[fd])
+        return -1;
+    
+    file_t *file = proc->fds[fd];
+    int n = file->node->ops->write(file->node, buf, size, file->offset);
 
-        return (int64_t)size;
-    }
+    if (n > 0)
+        file->offset += n;
 
-    return -1;
+    return n;
 }
 
 int sys_close(int fd) {
@@ -543,6 +531,65 @@ int sys_set_cwd(char *buf, size_t buf_size) {
     return (int)to_copy;
 }
 
+int sys_listdrives(drive_info_t *buf, int max) {
+    int count = 0;
+
+    for (int i = 0; i < MAX_DRIVES && count < max; i++) {
+        if (!vfs_drives[i].present)
+            continue;
+        
+        buf[count].id = (uint8_t)i;
+        buf[count].present = 1;
+
+        strncpy(buf[count].label, vfs_drives[i].label, sizeof(buf[count].label) - 1);
+
+        buf[count].label[sizeof(buf[count].label) - 1] = '\0';
+        count++;
+    }
+
+    return count;
+}
+
+int64_t sys_seek(int fd, int64_t offset, int whence) {
+    process_t *proc = curr_thread->process;
+
+    if (fd < 0 || fd >= MAX_FDS || !proc->fds[fd])
+        return -1;
+
+    file_t *file = proc->fds[fd];
+    int64_t new_off;
+
+    switch (whence) {
+        case 0: {
+            new_off = offset;
+            
+            break;
+        }
+
+        case 1: {
+            new_off = (int64_t)file->offset + offset;
+            
+            break;
+        }
+
+        case 2: {
+            new_off = (int64_t)file->node->size + offset;
+            
+            break;
+        }
+
+        default:
+            return -1;
+    }
+
+    if (new_off < 0)
+        return -1;
+
+    file->offset = (size_t)new_off;
+
+    return new_off;
+}
+
 uint64_t syscall_dispatch(uint64_t number, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
     switch (number) {
         case SYS_EXIT: {
@@ -634,6 +681,12 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t arg0, uint64_t arg1, uint64_
 
             return 0;
         }
+
+        case SYS_LISTDRIVES:
+            return (uint64_t)sys_listdrives((drive_info_t *)arg0, (int)arg1);
+        
+        case SYS_SEEK:
+            return (uint64_t)sys_seek((int)arg0, (int64_t)arg1, (int)arg2);
 
         default: {
             fbcon_printf("[D] syscall number=%d arg0=%p\n", number, arg0);

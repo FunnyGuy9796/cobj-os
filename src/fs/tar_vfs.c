@@ -1,13 +1,14 @@
 #include "tar_vfs.h"
 #include "tar.h"
 
-static fsnode_ops_t tar_ops;
+static fsnode_ops_t tarfs_ops;
+static fsnode_t *tarfs_root;
 
-static fsnode_t *tar_make_node(tar_header_t *hdr) {
+static fsnode_t *tarfs_make_node(tar_header_t *hdr) {
     fsnode_t *node = kmalloc(sizeof(fsnode_t));
 
     node->type = (hdr->type == '5') ? NODE_DIR : NODE_FILE;
-    node->ops = &tar_ops;
+    node->ops = &tarfs_ops;
     node->data = hdr;
     node->size = tar_parse_octal(hdr->size, 12);
     node->refcount = 1;
@@ -15,7 +16,7 @@ static fsnode_t *tar_make_node(tar_header_t *hdr) {
     return node;
 }
 
-static fsnode_t *tar_lookup(fsnode_t *dir, const char *name) {
+static fsnode_t *tarfs_lookup(fsnode_t *dir, const char *name) {
     char fullpath[256];
     tar_header_t *dirhdr = (tar_header_t *)dir->data;
 
@@ -46,7 +47,7 @@ static fsnode_t *tar_lookup(fsnode_t *dir, const char *name) {
 
         if (strcmp(hdr->name, fullpath) == 0 || (hdr->type == '5' && strncmp(hdr->name, fullpath, strlen(fullpath)) == 0
             && hdr->name[strlen(fullpath)] == '/' && hdr->name[strlen(fullpath)+1] == '\0'))
-            return tar_make_node(hdr);
+            return tarfs_make_node(hdr);
 
         offset += 512 + ((file_size + 511) & ~511ULL);
     }
@@ -54,7 +55,7 @@ static fsnode_t *tar_lookup(fsnode_t *dir, const char *name) {
     return NULL;
 }
 
-static int tar_readdir(fsnode_t *dir, uint32_t index, dirent_t *out) {
+static int tarfs_readdir(fsnode_t *dir, uint32_t index, dirent_t *out) {
     tar_header_t *dirhdr = (tar_header_t *)dir->data;
     char path[256];
     
@@ -121,7 +122,7 @@ static int tar_readdir(fsnode_t *dir, uint32_t index, dirent_t *out) {
     return -1;
 }
 
-static int tar_read(fsnode_t *node, void *buf, size_t len, size_t off) {
+static int tarfs_read(fsnode_t *node, void *buf, size_t len, size_t off) {
     tar_header_t *hdr = (tar_header_t *)node->data;
     uint64_t file_size = node->size;
     uint8_t *file_data = (uint8_t *)hdr + 512;
@@ -138,7 +139,7 @@ static int tar_read(fsnode_t *node, void *buf, size_t len, size_t off) {
     return (int)to_read;
 }
 
-static void tar_release(fsnode_t *node) {
+static void tarfs_release(fsnode_t *node) {
     if (node->refcount > 0)
         node->refcount--;
 
@@ -146,22 +147,29 @@ static void tar_release(fsnode_t *node) {
         kfree(node);
 }
 
-static fsnode_ops_t tar_ops = {
-    .lookup = tar_lookup,
-    .readdir = tar_readdir,
-    .read = tar_read,
+static fsnode_ops_t tarfs_ops = {
+    .lookup = tarfs_lookup,
+    .readdir = tarfs_readdir,
+    .read = tarfs_read,
     .write = NULL,
-    .release = tar_release
+    .release = tarfs_release
 };
 
-fsnode_t *tar_get_root(void) {
-    fsnode_t *root = kmalloc(sizeof(fsnode_t));
+void tarfs_init() {
+    tarfs_root = kmalloc(sizeof(fsnode_t));
 
-    root->type = NODE_DIR;
-    root->ops = &tar_ops;
-    root->data = NULL;
-    root->size = 0;
-    root->refcount = 1;
+    tarfs_root->type = NODE_DIR;
+    tarfs_root->ops = &tarfs_ops;
+    tarfs_root->data = NULL;
+    tarfs_root->size = 0;
+    tarfs_root->refcount = 1;
 
-    return root;
+    vfs_drives[0].root = tarfs_root;
+    vfs_drives[0].present = 1;
+
+    strncpy(vfs_drives[0].label, "initrd", sizeof(vfs_drives[0].label) - 1);
+}
+
+fsnode_t *tarfs_get_root() {
+    return tarfs_root;
 }

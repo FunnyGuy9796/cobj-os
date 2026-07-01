@@ -195,6 +195,20 @@ int listdir(const char *path, dirent_t *entries, int max) {
     return ret;
 }
 
+int listdrives(drive_info_t *buf, int max) {
+    int ret;
+
+    __asm__ volatile (
+        "mov $24, %%rax\n"
+        "syscall\n"
+        : "=a"(ret)
+        : "D"(buf), "S"((uint64_t)max)
+        : "rcx", "r11", "memory"
+    );
+
+    return ret;
+}
+
 int getcwd(char *path) {
     int ret;
 
@@ -219,4 +233,18 @@ int setcwd(const char *path, size_t len) {
         : "D"(path), "S"((uint64_t)len)
         : "rcx", "r11", "memory"
     );
+}
+
+int64_t seek(int fd, int64_t offset, int whence) {
+    int64_t ret;
+
+    __asm__ volatile (
+        "mov $25, %%rax\n"
+        "syscall\n"
+        : "=a"(ret)
+        : "D"((uint64_t)fd), "S"((uint64_t)offset), "d"((uint64_t)whence)
+        : "rcx", "r11", "memory"
+    );
+
+    return ret;
 }

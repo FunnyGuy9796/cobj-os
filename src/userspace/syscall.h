@@ -28,7 +28,15 @@
 #define SYS_GET_CWD 21
 #define SYS_SET_CWD 22
 #define SYS_CLEAR_SCREEN 23
+#define SYS_LISTDRIVES 24
+#define SYS_SEEK 25
 
 #define USER_SPACE_TOP 0x0000800000000000ULL
+
+typedef struct {
+    uint8_t id;
+    char label[64];
+    uint8_t present;
+} drive_info_t;
 
 #endif
