@@ -11,7 +11,7 @@ uint64_t proc_create(const uint8_t *elf_data, uint64_t elf_size, const char **ar
     uint64_t entry = elf_load(space, elf_data, elf_size);
 
     if (!entry) {
-        serial_printf("[E] process.c: proc_create() -> elf load failed\n");
+        fbcon_printf("[E] process.c: proc_create() -> elf load failed\n");
 
         return -1;
     }

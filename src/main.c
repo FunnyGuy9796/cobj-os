@@ -17,6 +17,9 @@
 #include "fs/tar.h"
 #include "fs/vfs.h"
 #include "fs/tar_vfs.h"
+#include "fb/fb.h"
+#include "fb/font.h"
+#include "fb/fbcon.h"
 
 __attribute__((used, section(".limine_requests_start")))
 static volatile uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
@@ -48,13 +51,22 @@ static volatile struct limine_module_request mod_request = {
     .revision = 0
 };
 
+__attribute__((used, section(".limine_framebuffer_request")))
+static volatile struct limine_framebuffer_request fb_request = {
+    .id = LIMINE_FRAMEBUFFER_REQUEST_ID,
+    .revision = 0
+};
+
 __attribute__((used, section(".limine_requests_end")))
 static volatile uint64_t limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARKER;
 
 struct limine_file *initrd;
+struct limine_framebuffer *fb;
 
 void kidle() {
     threads_enabled = true;
+
+    fb_clear(0xff000000);
     
     tar_init(initrd->address, initrd->size);
 
@@ -62,6 +74,33 @@ void kidle() {
     vfs_drives[0].present = 1;
 
     strncpy(vfs_drives[0].label, "initrd", sizeof(vfs_drives[0].label));
+
+    fsnode_t *font_node = vfs_resolve("0:/etc/Lat2-Terminus16.psf");
+
+    if (!font_node) {
+        fb_clear(0xffff0000);
+
+        for (;;)
+            __asm__ volatile ("hlt");
+    }
+
+    uint64_t font_size = font_node->size;
+    void *font_buf = kmalloc(font_size);
+    int fn = font_node->ops->read(font_node, font_buf, font_size, 0);
+
+    if (fn < 0 || (uint64_t)fn != font_size) {
+        fb_clear(0xff00ffff);
+        
+        for (;;)
+            __asm__ volatile ("hlt");
+    }
+
+    if (font_load_psf(font_buf, font_size, &curr_font) != 0) {
+        fb_clear(0xff00ff00);
+
+        for (;;)
+            __asm__ volatile ("hlt");
+    }
 
     fsnode_t *init_node = vfs_resolve("0:/init/init");
 
@@ -102,8 +141,15 @@ void kmain() {
     if (mod_request.response == NULL || mod_request.response->module_count < 1)
         panic("main.c: kmain() -> no initrd loaded\n");
     
+    if (fb_request.response == NULL || fb_request.response->framebuffer_count < 1)
+        panic("main.c: kmain() -> no framebuffer found\n");
+    
+    if (fb_request.response->framebuffers[0]->bpp != 32)
+        panic("main.c: kmain() -> 32-bit color not supported\n");
+    
     hhdm_offset = hhdm_request.response->offset;
     initrd = mod_request.response->modules[0];
+    fb = fb_request.response->framebuffers[0];
 
     gdt_init();
     idt_init();

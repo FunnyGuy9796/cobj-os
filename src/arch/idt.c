@@ -1,6 +1,7 @@
 #include "idt.h"
 #include "../multi/thread.h"
 #include "../multi/process.h"
+#include "../devices/kb.h"
 
 #define IDT_ENTRIES 256
 
@@ -26,6 +27,11 @@
 #define PIT_CHANNEL2 0x42
 #define PIT_CMD 0x43
 #define PIT_CTRL 0x61
+#define IOAPIC_BASE 0xfec00000
+#define IOAPIC_REGSEL 0x00
+#define IOAPIC_REGWIN 0x10
+#define PS2_DATA_PORT 0x60
+#define KEYBOARD_VECTOR (32 + 1)
 
 static const char *exception_names[] = {
     "division by zero",
@@ -54,6 +60,7 @@ static idt_entry_t idt[IDT_ENTRIES];
 static idtr_t idtr;
 static uint64_t lapic_base = 0;
 static uint32_t lapic_timer_tpm = 0;
+static uint64_t ioapic_base = 0;
 
 volatile uint64_t lapic_timer_ticks = 0;
 
@@ -138,6 +145,34 @@ static void idt_set_entry(int i, uint64_t handler, uint8_t type_attr) {
     idt[i].zero = 0;
 }
 
+static inline uint32_t ioapic_read(uint32_t reg) {
+    *((volatile uint32_t *)(ioapic_base + IOAPIC_REGSEL)) = reg;
+
+    return *((volatile uint32_t *)(ioapic_base + IOAPIC_REGWIN));
+}
+
+static inline void ioapic_write(uint32_t reg, uint32_t val) {
+    *((volatile uint32_t *)(ioapic_base + IOAPIC_REGSEL)) = reg;
+    *((volatile uint32_t *)(ioapic_base + IOAPIC_REGWIN)) = val;
+}
+
+static void ioapic_init() {
+    uint64_t phys = IOAPIC_BASE;
+    uint64_t virt = phys + hhdm_offset;
+
+    vmm_map_page(&kernel_addr_space, virt, phys, PAGE_WRITE | PAGE_PWT | PAGE_PCD);
+
+    ioapic_base = virt;
+}
+
+static void ioapic_set_irq(uint8_t irq, uint8_t vector, uint32_t lapic_id) {
+    uint32_t low = vector;
+    uint32_t high = lapic_id << 24;
+
+    ioapic_write(0x10 + irq * 2, low);
+    ioapic_write(0x10 + irq * 2 + 1, high);
+}
+
 extern uint64_t isr_table[32];
 extern uint64_t irq_table[16];
 
@@ -157,6 +192,8 @@ void idt_init() {
 void idt_enable() {
     pic_disable();
     lapic_init();
+    ioapic_init();
+    ioapic_set_irq(1, 32 + 1, (lapic_read(LAPIC_ID) >> 24));
 
     __asm__ volatile ("sti");
 }
@@ -169,9 +206,9 @@ void isr_handler(int_frame_t *frame) {
     if ((frame->cs & 3) == 3) {
         const char *name = frame->vector < 20 ? exception_names[frame->vector] : "unknown";
 
-        serial_printf("[E] userspace exception: pid=%d (%s) rip=%p\n",
+        fbcon_printf("[E] userspace exception: pid=%d (%s) rip=%p\n",
             curr_thread->process ? curr_thread->process->pid : -1, name, frame->rip);
-        serial_printf("  cr4=%lx cr3=%lx cr2=%lx cr0=%lx\n  r15=%lx r14=%lx r13=%lx r12=%lx\n  r11=%lx r10=%lx r9=%lx r8=%lx\n  rbp=%lx rdi=%lx rsi=%lx rdx=%lx\n  rcx=%lx rbx=%lx rax=%lx rsp=%lx cs=%lx\n",
+        fbcon_printf("  cr4=%lx cr3=%lx cr2=%lx cr0=%lx\n  r15=%lx r14=%lx r13=%lx r12=%lx\n  r11=%lx r10=%lx r9=%lx r8=%lx\n  rbp=%lx rdi=%lx rsi=%lx rdx=%lx\n  rcx=%lx rbx=%lx rax=%lx rsp=%lx cs=%lx\n",
             frame->cr4, frame->cr3, frame->cr2, frame->cr0, frame->r15, frame->r14,
             frame->r13, frame->r12, frame->r11, frame->r10, frame->r9, frame->r8, frame->rbp, frame->rdi, frame->rsi,
             frame->rdx, frame->rcx, frame->rbx, frame->rax, frame->rsp, frame->cs);
@@ -185,8 +222,8 @@ void isr_handler(int_frame_t *frame) {
         __builtin_unreachable();
     }
 
-    serial_printf("[EXCEPTION] vector=%d error=%x rip=%p rflags=%p\n", frame->vector, frame->error, frame->rip, frame->rflags);
-    serial_printf("  cr4=%lx cr3=%lx cr2=%lx cr0=%lx\n  r15=%lx r14=%lx r13=%lx r12=%lx\n  r11=%lx r10=%lx r9=%lx r8=%lx\n  rbp=%lx rdi=%lx rsi=%lx rdx=%lx\n  rcx=%lx rbx=%lx rax=%lx rsp=%lx cs=%lx\n",
+    fbcon_printf("[EXCEPTION] vector=%d error=%x rip=%p rflags=%p\n", frame->vector, frame->error, frame->rip, frame->rflags);
+    fbcon_printf("  cr4=%lx cr3=%lx cr2=%lx cr0=%lx\n  r15=%lx r14=%lx r13=%lx r12=%lx\n  r11=%lx r10=%lx r9=%lx r8=%lx\n  rbp=%lx rdi=%lx rsi=%lx rdx=%lx\n  rcx=%lx rbx=%lx rax=%lx rsp=%lx cs=%lx\n",
         frame->cr4, frame->cr3, frame->cr2, frame->cr0, frame->r15, frame->r14,
         frame->r13, frame->r12, frame->r11, frame->r10, frame->r9, frame->r8, frame->rbp, frame->rdi, frame->rsi,
         frame->rdx, frame->rcx, frame->rbx, frame->rax, frame->rsp, frame->cs);
@@ -197,7 +234,7 @@ void isr_handler(int_frame_t *frame) {
 
 void irq_handler(uint64_t vector) {
     if (vector == LAPIC_SPURIOUS_VECTOR) {
-        serial_printf("[W] spurious IRQ received\n");
+        fbcon_printf("[W] spurious IRQ received\n");
         
         return;
     }
@@ -225,7 +262,17 @@ void irq_handler(uint64_t vector) {
         return;
     }
 
-    serial_printf("[I] vector=%d\n", vector);
+    if (vector == KEYBOARD_VECTOR) {
+        uint8_t scancode = inb(PS2_DATA_PORT);
+
+        kbd_handle_scancode(scancode);
+
+        lapic_eoi();
+
+        return;
+    }
+
+    fbcon_printf("[I] vector=%d\n", vector);
 
     lapic_eoi();
 }

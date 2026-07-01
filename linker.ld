@@ -20,6 +20,7 @@ SECTIONS {
         KEEP(*(.limine_hhdm_request))
         KEEP(*(.limine_executable_address_request))
         KEEP(*(.limine_module_request))
+        KEEP(*(.limine_framebuffer_request))
         KEEP(*(.limine_requests_end))
     } :limine_requests
 

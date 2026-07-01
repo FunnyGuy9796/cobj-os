@@ -1,2 +1,1 @@
-Cobj OS is an operating system that is honestly more of a non-descript object than anything else (hence the name). It aims to be able to serve a web page
-and to just be a fun learning experience.
+Cobj OS is an operating system that is honestly more of a non-descript object than anything else (hence the name). It aims to be able to serve a web page and to just be a fun learning experience.

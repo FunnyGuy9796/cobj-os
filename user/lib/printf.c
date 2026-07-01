@@ -216,20 +216,6 @@ static int vsnprintf(char *buf, size_t size, const char *fmt, va_list args) {
     return (int)i;
 }
 
-static int sys_print(const char *str) {
-    int ret;
-
-    __asm__ volatile (
-        "mov $1, %%rax\n"
-        "syscall"
-        : "=a"(ret)
-        : "D"(str)
-        : "rcx", "r11", "memory"
-    );
-
-    return ret;
-}
-
 int snprintf(char *buf, size_t size, const char *fmt, ...) {
     va_list args;
 
@@ -266,4 +252,18 @@ int vprintf(const char *fmt, va_list args) {
         write(STDOUT, buf, len);
 
     return len;
+}
+
+void clear() {
+    int ret;
+
+    __asm__ volatile (
+        "mov $23, %%rax\n"
+        "syscall"
+        : "=a"(ret)
+        : 
+        : "rcx", "r11", "memory"
+    );
+
+    (void)ret;
 }

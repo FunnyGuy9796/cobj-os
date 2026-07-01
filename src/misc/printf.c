@@ -252,8 +252,32 @@ int serial_vprintf(const char *fmt, va_list args) {
     return len;
 }
 
+int fbcon_printf(const char *fmt, ...) {
+    char buf[1024];
+    va_list args;
+
+    va_start(args, fmt);
+
+    int len = vsnprintf(buf, sizeof(buf), fmt, args);
+
+    va_end(args);
+
+    fbcon_write(buf);
+
+    return len;
+}
+
+int fbcon_vprintf(const char *fmt, va_list args) {
+    char buf[1024];
+    int len = vsnprintf(buf, sizeof(buf), fmt, args);
+
+    fbcon_write(buf);
+
+    return len;
+}
+
 void panic(const char *fmt, ...) {
-    serial_printf("[PANIC] ");
+    fbcon_printf("[PANIC] ");
     
     char buf[1024];
     va_list args;
@@ -264,7 +288,7 @@ void panic(const char *fmt, ...) {
 
     va_end(args);
 
-    serial_write(buf);
+    fbcon_write(buf);
 
     __asm__ volatile ("cli");
 

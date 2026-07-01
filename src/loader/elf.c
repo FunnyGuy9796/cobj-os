@@ -9,25 +9,25 @@ uint64_t elf_load(addr_space_t *space, const uint8_t *data, uint64_t size) {
     elf64_hdr_t *hdr = (elf64_hdr_t *)data;
 
     if (hdr->magic != ELF_MAGIC) {
-        serial_printf("[E] elf.c: elf_load() -> bad magic\n");
+        fbcon_printf("[E] elf.c: elf_load() -> bad magic\n");
 
         return 0;
     }
 
     if (hdr->bits != 2) {
-        serial_printf("[E] elf.c: elf_load() -> not 64-bit\n");
+        fbcon_printf("[E] elf.c: elf_load() -> not 64-bit\n");
 
         return 0;
     }
 
     if (hdr->machine != EM_X86_64) {
-        serial_printf("[E] elf.c: elf_load() -> not x86-64\n");
+        fbcon_printf("[E] elf.c: elf_load() -> not x86-64\n");
 
         return 0;
     }
 
     if (hdr->type != ET_EXEC) {
-        serial_printf("[E] elf.c: elf_load() -> not an executable\n");
+        fbcon_printf("[E] elf.c: elf_load() -> not an executable\n");
 
         return 0;
     }
@@ -49,7 +49,7 @@ uint64_t elf_load(addr_space_t *space, const uint8_t *data, uint64_t size) {
             uint64_t phys = pmm_alloc_page();
 
             if (!phys) {
-                serial_printf("[E] elf.c: elf_load() -> out of memory\n");
+                fbcon_printf("[E] elf.c: elf_load() -> out of memory\n");
 
                 return 0;
             }

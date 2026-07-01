@@ -84,6 +84,8 @@ static void parse_args(char *input) {
 static char cwd[256];
 
 int main(int argc, char **argv) {
+    clear();
+
     if (argv[1] && strcmp(argv[1], "--bindir") == 0) {
         if (argv[2])
             strncpy(bin_dir, argv[2], sizeof(bin_dir) - 1);

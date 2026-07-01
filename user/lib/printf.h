@@ -8,5 +8,6 @@
 int snprintf(char *buf, size_t size, const char *fmt, ...);
 int printf(const char *fmt, ...);
 int vprintf(const char *fmt, va_list args);
+void clear();
 
 #endif

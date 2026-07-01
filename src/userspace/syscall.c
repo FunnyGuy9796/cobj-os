@@ -8,6 +8,7 @@
 #include "../mm/heap.h"
 #include "../arch/idt.h"
 #include "../arch/rtc.h"
+#include "../devices/kb.h"
 
 volatile bool proc_needs_cleanup = false;
 
@@ -131,7 +132,7 @@ void sys_exit(uint64_t code) {
 }
 
 void sys_print(const char *str) {
-    serial_write(str);
+    fbcon_write(str);
 }
 
 void *sys_mmap(uint64_t addr, uint64_t size) {
@@ -249,12 +250,6 @@ void sys_wait_pid(uint64_t pid) {
     schedule();
 }
 
-char sys_read_char() {
-    while (!(inb(0x3f8 + 5) & 1));
-
-    return inb(0x3f8);
-}
-
 void sys_sleep(uint64_t ms) {
     curr_thread->sleep_until = apic_timer_ticks() + ms;
     curr_thread->state = THREAD_BLOCKED;
@@ -348,7 +343,7 @@ int64_t sys_read(int fd, void *buf, uint64_t size) {
         uint64_t i = 0;
 
         while (i < size) {
-            cbuf[i] = sys_read_char();
+            cbuf[i] = kbd_getchar();
 
             if (cbuf[i++] == '\n')
                 break;
@@ -376,7 +371,7 @@ int64_t sys_write(int fd, const void *buf, uint64_t size) {
         const char *cbuf = (const char *)buf;
 
         for (uint64_t i = 0; i < size; i++)
-            serial_putchar(cbuf[i]);
+            fbcon_putchar(cbuf[i]);
 
         return (int64_t)size;
     }
@@ -633,9 +628,15 @@ uint64_t syscall_dispatch(uint64_t number, uint64_t arg0, uint64_t arg1, uint64_
         
         case SYS_SET_CWD:
             return (uint64_t)sys_set_cwd((char *)arg0, (size_t)arg1);
+        
+        case SYS_CLEAR_SCREEN: {
+            fbcon_clear();
+
+            return 0;
+        }
 
         default: {
-            serial_printf("[D] syscall number=%d arg0=%p\n", number, arg0);
+            fbcon_printf("[D] syscall number=%d arg0=%p\n", number, arg0);
 
             break;
         }

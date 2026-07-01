@@ -48,7 +48,11 @@ $(LIB): $(LIB_OBJS)
 	mkdir -p $(dir $@)
 	cp $< $@
 
-initrd.tar: $(USER_ELFS) ./build/user/info.txt
+./build/user/etc/Lat2-Terminus16.psf: ./user/etc/Lat2-Terminus16.psf
+	mkdir -p $(dir $@)
+	cp $< $@
+
+initrd.tar: $(USER_ELFS) ./build/user/info.txt ./build/user/etc/Lat2-Terminus16.psf
 	cd ./build/user && tar -cf ../../initrd.tar --format=ustar \
 		--transform='s|^\./||' \
 		--exclude='*.o' \
@@ -82,7 +86,7 @@ run: iso
         -m 1G \
         -cdrom $(NAME).iso \
         -boot d \
-        -nographic \
+		-display sdl,gl=on \
 		-rtc base=localtime
 
 ./build/%.o: ./src/%.c
